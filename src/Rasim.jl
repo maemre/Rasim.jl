@@ -1,0 +1,5 @@
+module Rasim
+
+# package code goes here
+
+end # module
