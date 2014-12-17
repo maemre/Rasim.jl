@@ -1,3 +1,5 @@
+#!/usr/bin/env julia
+
 module Rasim
 
 if !isinteractive()
