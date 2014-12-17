@@ -11,7 +11,7 @@ const batch_run = false
 const verbose = true && !batch_run
 const debug = false
 # number of runs
-const n_runs = 1
+const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
