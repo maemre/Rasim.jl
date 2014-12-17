@@ -1,5 +1,9 @@
 module Rasim
 
+if !isinteractive()
+    print("Loading modules...")
+end
+
 using Params
 using Agents.BaseAgent
 using Agents
@@ -7,6 +11,12 @@ using Traffic.Simple
 using Channel.Gilbert
 using HDF5, JLD
 using Movement
+using Plots
+
+
+if !isinteractive()
+    println("DONE!")
+end
 
 output_dir = joinpath("data/", prefix)
 
@@ -158,13 +168,32 @@ function run_simulation(AgentT, at_no :: Int)
     if verbose
         println("Throughput: ", sum(avg_bits))
         println("Efficiency: ", sum(avg_bits)/sum(avg_energies))
+        plot_ee(avg_energies, avg_bits, string(AgentT), at_no)
     end
+    
+    if Params.debug
+        println("Energies")
+        println(cumsum(sum(avg_energies, 1), 2))
+        println("Bits")
+        println(cumsum(sum(avg_bits, 1), 2))
+        println("Efficiency")
+        println(cumsum(sum(avg_energies, 1), 2) ./ cumsum(sum(avg_bits, 1), 2))
+        readline()
+    end
+
     @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits en_idle en_sense en_sw en_tx buf_overflow buf_levels init_positions last_positions trajectories transmissions channel_traf
 end
 
 if !isinteractive()
+    if verbose
+        initplots()
+    end
     for i=1:endof(agent_types)
         run_simulation(agent_types[i], i)
+    end
+    if verbose
+        displayplots()
+        readline()
     end
 end
 

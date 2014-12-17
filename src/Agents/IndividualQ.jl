@@ -36,9 +36,7 @@ end
 
 function policy!(a :: IndividualQ)
     # check whether we have packets first
-    if a.s.B_max == a.s.B_empty
-        a.a = idle_action
-    elseif rand() < epsilon
+    if rand() < epsilon
         a.a = rand(1:idle_action)
     else
         a.a = indmax(a.Q[a.s.chan, div(a.s.B_empty, buf_interval) + 1, :])
@@ -48,6 +46,22 @@ end
 
 function BaseAgent.act(a :: IndividualQ, env, t)
     # check whether we have packets first
+    if a.s.B_max == a.s.B_empty
+        # if we don't have packages, return immediately without calling policy
+        a.a = -1 # mark that we didn't take any action that's worth learning
+        return idle(a)
+    end
+
+    #=if t == Params.t_total
+        println(a.visit)
+        println("----------")
+        println(sum(a.visit, 3))
+        readline()
+        println(a.Q)
+        println("----------")
+        println(sum(a.Q, 3))
+        readline()
+    end=#
 
     policy!(a)
     a.state = (a.s.chan, div(a.s.B_empty, buf_interval) + 1)
@@ -65,7 +79,7 @@ function BaseAgent.act(a :: IndividualQ, env, t)
         return idle(a)
     end
 
-    a.P_tx = Params.P_levels[a.a % n_p_levels + 1]
+    a.P_tx = Params.P_levels[(a.a - 1) % n_p_levels + 1]
     a.bitrate = capacity(env.channels[a.s.chan], a.P_tx, a.s.pos)
     pkgs_to_send = min(a.s.B_max - a.s.B_empty, floor(a.s.t_remaining * a.bitrate / Params.pkt_size))
 
@@ -77,11 +91,15 @@ function BaseAgent.act(a :: IndividualQ, env, t)
 end
 
 function alpha(a :: IndividualQ)
-    return 0.1 + 0.9 / (1 + a.visit[a.state[1], a.state[2], a.a])
+    return 0.2 + 0.8 / (1 + a.visit[a.state[1], a.state[2], a.a])
 end
 
 function BaseAgent.feedback(a :: IndividualQ, res :: Result, idle :: Bool = false, n_pkt :: Int16 = int16(0))
     feedback(a.s, res, idle, n_pkt)
+    # if we didn't take any action that's worth learning, return immediately
+    if a.a == -1
+        return nothing
+    end
     r :: Float64 = 0
     if idle
         r = - beta_idle * a.s.E_slot

@@ -54,7 +54,7 @@ function BaseAgent.act(a :: OptHighestSNR, env, t)
     # use maximum power, if planning to transmit
     P_tx = Params.P_levels[end-1]
 
-    pkgs_to_send = min(pkgs_to_send, floor((a.s.t_remaining * capacity(env.channels[a.s.chan], P_tx, a.s.pos)) / Params.pkt_size))
+    pkgs_to_send = min(a.s.B_max - a.s.B_empty, floor((a.s.t_remaining * capacity(env.channels[a.s.chan], P_tx, a.s.pos)) / Params.pkt_size))
 
     if pkgs_to_send == 0
         return idle(a)

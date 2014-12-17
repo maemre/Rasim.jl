@@ -18,16 +18,16 @@ type GilbertChannel
     noises :: Array{Float64, 1}
     A :: Array{Float64, 2} # transition probabilities
 
-    function GilbertChannel(freq, noises, A, state = 1)
-        ch = new()
-        ch.freq = freq
-        ch.noises = vec(noises)
-        ch.state = state
-        ch.bandwidth = Params.chan_bw
-        ch.n0 = ch.noises[ch.state]
-        ch.noise = toWatt(ch.n0 + todBm(ch.bandwidth))
-        ch.A = A
-        ch
+    function GilbertChannel(freq, noises, A)
+        c = new()
+        c.freq = freq
+        c.noises = vec(noises)
+        c.state = int(rand() <= 0.5) + 1
+        c.bandwidth = Params.chan_bw
+        c.n0 = c.noises[c.state]
+        c.noise = toWatt(c.n0) * c.bandwidth
+        c.A = A
+        c
     end
 
 end
@@ -37,11 +37,11 @@ const states = eye(size(Params.noise, 1))
 function iterate(c :: GilbertChannel)
     c.state = rand(Categorical(c.A[:, c.state]))
     c.n0 = c.noises[c.state]
-    c.noise = toWatt(c.n0 + todBm(c.bandwidth))
+    c.noise = toWatt(c.n0) * c.bandwidth
 end
 
 function berawgn(c :: GilbertChannel, E_b)
-    0.5 * exp(- toWatt(todBm(E_b) - c.n0))
+    0.5 * exp(- E_b / toWatt(c.n0))
 end
 
 function capacity(c :: GilbertChannel, power, pos)

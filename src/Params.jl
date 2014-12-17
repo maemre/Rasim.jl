@@ -9,14 +9,15 @@ export t_slot, prefix, batch_run, verbose, n_runs, t_total, n_agent, n_stationar
 # Simulation parameters:
 const batch_run = false
 const verbose = true && !batch_run
+const debug = false
 # number of runs
-const n_runs = 30
+const n_runs = 1
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(600 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(40 / t_slot)) # convert seconds to time slots
 # total number of agents
-const n_agent = int8(2)
+const n_agent = int8(1)
 # number of stationary agents
 const n_stationary_agent = div(n_agent, 2)
 # number of channels
@@ -38,8 +39,8 @@ const b_size = B * pkt_size
 # defined as a discrete uniform distribution with parameters:
 const pkt_min = 0 # pkg / slot, inclusive
 const pkt_max = 6 # pkg / slot, inclusive
-const buf_levels = 10
-const beta_idle = 4.
+const buf_levels = 4
+const beta_idle = 20.
 
 # durations
 const t_sense = 0.1 * t_slot
