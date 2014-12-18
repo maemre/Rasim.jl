@@ -14,6 +14,7 @@ using Channel.Gilbert
 using HDF5, JLD
 using Movement
 using Plots
+using Base.Collections
 
 
 if !isinteractive()
@@ -27,7 +28,7 @@ if !isdir(output_dir)
 end
 
 const goodness = shuffle!(append!(2 * ones(Int, n_good_channel), ones(Int, n_channel - n_good_channel)))
-const agent_types = [RandomChannel, IndividualQ, OptHighestSNR]
+const agent_types = [RandomChannel] # , IndividualQ, OptHighestSNR]
 
 # generate ith channel
 function genchan(i)
@@ -74,8 +75,12 @@ function run_simulation(AgentT, at_no :: Int)
             for traf in traffics
                 Simple.iterate(traf)
             end
-            # get actions
-            actions = [act_then_idle(a, env, t) for a in agents]
+            # get initial actions
+            actions = PriorityQueue{Action, Float64}()
+            for a in agents
+                time = Params.t_slot - a.s.t_remaining
+                enqueue!(actions, initial_action(a, env, t), time)
+            end
             # save initial statistics
             trajectories[t, :] = [a.s.pos for a in agents]
             @simd for i=1:n_agent
@@ -83,30 +88,46 @@ function run_simulation(AgentT, at_no :: Int)
                 @inbounds buf_levels[n_run, i, t] = B - agents[i].s.B_empty
             end
 
-            # collisions per channel where,
-            # -1: PU collision, (1..N_agent): SU collision with ID
-            # 0: No collision
-            collisions = [(t.traffic ? -1 : 0) for t in traffics]
+            last_actions = Array(Action, Params.n_agent)
             # whether agents[i] has collided
             collided = zeros(Bool, n_agent)
+            # resolve all actions
+            while ! isempty(actions)
+                action, tt = peek(actions)
+                a = agents[action.i]
+                dequeue!(actions)
+                if isa(action, Switch)
+                    switch!(agents[action.i], action.chan)
+                    enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
+                elseif isa(action, Sense)
+                    enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
+                elseif isa(action, Transmit)
+                    i = action.chan
+                    traffics[i].occupancy = min(tt, traffics[i].occupancy)
+                    # use first occupier data to mark as collided
+                    if traffics[i].occupier > -1
+                        collided[action.i] = true
+                        if traffics[i].occupier > 0
+                            collided[traffics[i].occupier] = true # I'm the first occupier
+                        end
+                    else
+                        traffics[i].occupier = action.i
+                    end
+                    enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
+                end
+                if ! (isa(action, Idle) && isdefined(last_actions, int(action.i)) && isa(last_actions[action.i], Transmit))
+                    last_actions[action.i] = action
+                end
+            end
+
             # resolve collisions
             for i=1:n_agent
-                a=actions[i]
-                if a == Idle()
-                    transmissions[n_run, i, t] = 0
-                elseif isa(a, Transmit)
-                    if collisions[a.chan] == -1
-                        # collision with PU, mark agent as collided
-                        collided[i] = true
-                        rates[5] += 1
-                    elseif collisions[a.chan] > 0
-                        # collision with other SU, mark both as collided
-                        collided[i] = collided[collisions[a.chan]] = true
-                    else
-                        # no collisions *yet*, register current agent as occupier
-                        collisions[a.chan] = i
+                if isa(last_actions[i], Transmit)
+                    if ! collided[i]
+                        transmissions[n_run, i, t] = last_actions[i].chan
                     end
-                    transmissions[n_run, i, t] = a.chan
+                else
+                    transmissions[n_run, i, t] = 0
                 end
             end
 
@@ -117,9 +138,9 @@ function run_simulation(AgentT, at_no :: Int)
                 en_sense[i, t] += a.s.E_sense
                 en_tx[i, t] += a.s.E_tx
                 en_sw[i, t] += a.s.E_sw
-                act = actions[i]
+                act = last_actions[i]
 
-                if act == Idle()
+                if isa(act, Idle)
                     feedback(agents[i], Success, true)
                     rates[4] += 1
                     continue
@@ -127,21 +148,21 @@ function run_simulation(AgentT, at_no :: Int)
                     feedback(agents[i], Collision)
                     rates[1] += 1
                     continue
-                end
+                elseif isa(act, Transmit)
+                    ch = channels[act.chan]
+                    pkt_sent = transmission_successes(ch, act.power, act.bitrate, act.n_pkt, a.s.pos.x, a.s.pos.y)
+                    
+                    if pkt_sent == 0
+                        feedback(agents[i], LostInChannel)
+                    else
+                        feedback(agents[i], Success, false, pkt_sent)
+                    end
 
-                ch = channels[act.chan]
-                pkt_sent = transmission_successes(ch, act.power, act.bitrate, act.n_pkt, a.s.pos.x, a.s.pos.y)
-                
-                if pkt_sent == 0
-                    feedback(agents[i], LostInChannel)
-                else
-                    feedback(agents[i], Success, false, pkt_sent)
+                    rates[2] += pkt_sent / act.n_pkt
+                    rates[3] += act.n_pkt - pkt_sent
+                    # collect bit transmission statistics
+                    bits[i, t] = pkt_sent * Params.pkt_size
                 end
-
-                rates[2] += pkt_sent / act.n_pkt
-                rates[3] += act.n_pkt - pkt_sent
-                # collect bit transmission statistics
-                bits[i, t] = pkt_sent * Params.pkt_size
             end
         end
 

@@ -7,7 +7,8 @@ using Traffic.Simple
 
 export AgentState, Environment, Agent, Result, Success, Collision, BufOverflow, LostInChannel,
        Action, Transmit, Sense, Idle, move, fillbuffer, idle, act_then_idle, sense, feedback,
-       switch!, transmit!
+       switch!, transmit!, Status, Initialized, Switched, Sensed, Transmitted, initial_action,
+       act, switch, Switch
 
 type Environment
     channels :: Vector{GilbertChannel}
@@ -26,6 +27,16 @@ const Success = Result(0)
 const Collision = Result(1)
 const BufOverflow = Result(2)
 const LostInChannel = Result(3)
+
+immutable Status
+    n :: Int
+    Status(n) = new(n)
+end
+
+const Initialized = Status(0)
+const Switched = Status(1)
+const Sensed = Status(2)
+const Transmitted = Status(3)
 
 # I align structures for smaller memory footprint (size matters!)
 type AgentState
@@ -75,14 +86,21 @@ type Transmit <: Action
     bitrate :: Float64
     chan :: Int8
     n_pkt :: Int16
+    i :: Int8
 end
 
 type Idle <: Action
+    i :: Int8
 end
 
 type Sense <: Action
-    backoff :: Float64
     chan :: Int8
+    i :: Int8
+end
+
+type Switch <: Action
+    chan :: Int8
+    i :: Int8
 end
 
 function move!(s :: AgentState, t :: Int64)
@@ -111,10 +129,10 @@ function idle(a :: Agent, t :: Float64 = -1.)
     s.E_idle += Params.P_idle * t
     s.E_slot += s.E_idle
     s.t_remaining -= t
-    Idle()
+    Idle(s.id)
 end
 
-function act_then_idle(a :: Agent, env :: Environment, t :: Int64)
+function initial_action(a :: Agent, env :: Environment, t :: Int64)
     fillbuffer(a)
     move!(a.s, t)
     s :: AgentState = a.s
@@ -125,9 +143,8 @@ function act_then_idle(a :: Agent, env :: Environment, t :: Int64)
     s.E_tx = 0
     s.E_sense = 0
     s.E_idle = 0
-    action = act(a, env, t)
-    idle(a)
-    action
+    a.status = Initialized
+    act(a, env, t)
 end
 
 function sense(a :: Agent, env :: Environment, detect_traffic :: Function)
@@ -138,7 +155,8 @@ function sense(a :: Agent, env :: Environment, detect_traffic :: Function)
     s.t_remaining -= Params.t_sense
     s.E_sense = Params.P_sense * Params.t_sense
     s.E_slot += s.E_sense
-    detect_traffic(env.traffics[s.chan])
+    a.status = Sensed
+    Sense(s.chan, s.id)
 end
 
 function feedback(s :: AgentState, res :: Result, idle :: Bool = false, n_pkt :: Int16 = int16(0))
@@ -158,7 +176,12 @@ function feedback(a :: Agent, res :: Result, idle :: Bool = false, n_pkt :: Int1
     feedback(a.s, res, idle, n_pkt)
 end
 
-function switch!(s :: AgentState, c :: Int8)
+function switch(a :: Agent, c :: Int8)
+    Switch(c, a.s.id)
+end
+
+function switch!(a :: Agent, c :: Int8)
+    s :: AgentState = a.s
     t_sw = Params.t_sw * abs(c - s.chan)
     if s.t_remaining < t_sw
         error(sprintf("No time remained for switching from chan #%d to chan #%d", s.chan, c))
@@ -168,10 +191,12 @@ function switch!(s :: AgentState, c :: Int8)
     s.E_slot += s.E_sw
     s.t_remaining -= t_sw
     s.chan = c
+    a.status = Switched
     nothing
 end
 
-function transmit!(s :: AgentState, P_tx, env, n_pkt)
+function transmit!(a :: Agent, P_tx, env, n_pkt)
+    s :: AgentState = a.s
     n_bits = n_pkt * Params.pkt_size
     bitrate = capacity(env.channels[s.chan], P_tx, s.pos)
     if s.t_remaining < n_bits / bitrate
@@ -182,8 +207,8 @@ function transmit!(s :: AgentState, P_tx, env, n_pkt)
     s.t_remaining -= n_bits / bitrate
     s.E_tx = P_tx * n_bits / bitrate
     s.E_slot += s.E_tx
-
-    Transmit(P_tx, bitrate, s.chan, n_pkt)
+    a.status = Transmitted
+    Transmit(P_tx, bitrate, s.chan, n_pkt, s.id)
 end
 
 function act(a :: Agent)

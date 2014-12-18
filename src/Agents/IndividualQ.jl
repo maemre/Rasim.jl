@@ -23,7 +23,7 @@ const beta_overflow = 1000
 const beta_idle = Params.beta_idle # coefficient cost of staying idle
 const beta_md = 1 # misdetection punishment coefficient
 const beta_loss = 4 # punishment for data loss in channel
-const epsilon = 0.03 # exploration probability
+const epsilon = 0.05 # exploration probability
 const discount = 0.2 # discount factor, gamma
 const buf_interval = div(Params.B + 1, Params.buf_levels)
 
