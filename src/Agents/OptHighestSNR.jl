@@ -8,7 +8,8 @@ export OptHighestSNR
 
 type OptHighestSNR <: Agent
     s :: AgentState
-    OptHighestSNR(i) = new(AgentState(i))
+    status :: Status
+    OptHighestSNR(i) = new(AgentState(i), Initialized)
 end
 
 #=
@@ -29,36 +30,36 @@ function minimum_noise(env :: Environment)
 end
 
 function BaseAgent.act(a :: OptHighestSNR, env, t)
-    pkgs_to_send = a.s.B_max - a.s.B_empty
+    if a.status == Initialized
+        if a.s.B_max - a.s.B_empty == 0
+            return idle(a)
+        end
 
-    if pkgs_to_send == 0
+        # we've done packet checking
+        min_noise = minimum_noise(env)
+        if min_noise == Inf
+            return idle(a)
+        end
+
+        min_noise_channels = filter(i -> ! env.traffics[i].traffic && env.channels[i].noise <= min_noise, 1:Params.n_channel)
+        chan = int8(min_noise_channels[rand(int8(1):endof(min_noise_channels))])
+
+        return switch(a, chan)
+    elseif a.status == Switched
+        return sense(a, env, detect_traffic)
+    elseif a.status == Sensed
+        if detect_traffic(env.traffics[a.s.chan], a.s.t_remaining)
+            return idle(a)
+        else
+            P_tx = Params.P_levels[end-1]
+            pkgs_to_send = min(a.s.B_max - a.s.B_empty, floor((a.s.t_remaining * capacity(env.channels[a.s.chan], P_tx, a.s.pos)) / Params.pkt_size))
+
+            if pkgs_to_send == 0
+                return idle(a)
+            end
+            return transmit!(a, P_tx, env, pkgs_to_send)
+        end
+    elseif a.status == Transmitted
         return idle(a)
     end
-
-    # we've done packet checking
-    min_noise = minimum_noise(env)
-    if min_noise == Inf
-        return idle(a)
-    end
-
-    min_noise_channels = filter(i -> ! env.traffics[i].traffic && env.channels[i].noise <= min_noise, 1:Params.n_channel)
-
-    chan = int8(min_noise_channels[rand(int8(1):endof(min_noise_channels))])
-
-    switch!(a.s, chan)
-
-    # call sense only for energy recording, we're sensing perfectly
-    # in this agent type
-    sense(a, env, detect_traffic)
-
-    # use maximum power, if planning to transmit
-    P_tx = Params.P_levels[end-1]
-
-    pkgs_to_send = min(a.s.B_max - a.s.B_empty, floor((a.s.t_remaining * capacity(env.channels[a.s.chan], P_tx, a.s.pos)) / Params.pkt_size))
-
-    if pkgs_to_send == 0
-        return idle(a)
-    end
-
-    transmit!(a.s, P_tx, env, pkgs_to_send)
 end

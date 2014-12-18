@@ -17,7 +17,7 @@ const t_slot = 10e-3 # s
 # total simulation time (as time slots)
 const t_total = int(floor(40 / t_slot)) # convert seconds to time slots
 # total number of agents
-const n_agent = int8(1)
+const n_agent = int8(4)
 # number of stationary agents
 const n_stationary_agent = div(n_agent, 2)
 # number of channels
@@ -45,6 +45,7 @@ const beta_idle = 20.
 # durations
 const t_sense = 0.1 * t_slot
 const t_sw = 0.05 * t_slot
+const t_backoff = Params.t_sense * 2
 
 # powers
 const P_tx = 200e-3 # W

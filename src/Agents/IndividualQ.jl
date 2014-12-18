@@ -15,6 +15,7 @@ type IndividualQ <: Agent
     state :: (Int, Int)
     P_tx :: Float64
     bitrate :: Float64
+    status :: Status
 end
 
 const n_p_levels = length(Params.P_levels)
@@ -31,7 +32,7 @@ function IndividualQ(i)
     Q = rand(int(Params.n_channel), Params.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
     visit = zeros(Params.n_channel, Params.buf_levels + 1, idle_action)
-    IndividualQ(AgentState(i), Q, visit, 0, (0, 0), 0, 0)
+    IndividualQ(AgentState(i), Q, visit, 0, (0, 0), 0, 0, Initialized)
 end
 
 function policy!(a :: IndividualQ)
@@ -45,49 +46,40 @@ function policy!(a :: IndividualQ)
 end
 
 function BaseAgent.act(a :: IndividualQ, env, t)
-    # check whether we have packets first
-    if a.s.B_max == a.s.B_empty
-        # if we don't have packages, return immediately without calling policy
-        a.a = -1 # mark that we didn't take any action that's worth learning
+    if a.status == Initialized
+        if a.s.B_max - a.s.B_empty == 0
+            a.a = -1
+            return idle(a)
+        end
+
+        policy!(a)
+        a.state = (a.s.chan, div(a.s.B_empty, buf_interval) + 1)
+        a.visit[a.s.chan, a.state[2], a.a] += 1
+
+        if a.a == idle_action
+            return idle(a)
+        end
+
+        chan = int8(fld(a.a - 1, n_p_levels) + 1)
+        return switch(a, chan)
+    elseif a.status == Switched
+        return sense(a, env, detect_traffic)
+    elseif a.status == Sensed
+        if detect_traffic(env.traffics[a.s.chan], a.s.t_remaining)
+            return idle(a)
+        else
+            a.P_tx = Params.P_levels[(a.a - 1) % n_p_levels + 1]
+            a.bitrate = capacity(env.channels[a.s.chan], a.P_tx, a.s.pos)
+            pkgs_to_send = min(a.s.B_max - a.s.B_empty, floor(a.s.t_remaining * a.bitrate / Params.pkt_size))
+
+            if pkgs_to_send == 0
+                return idle(a)
+            end
+            return transmit!(a, a.P_tx, env, pkgs_to_send)
+        end
+    elseif a.status == Transmitted
         return idle(a)
     end
-
-    #=if t == Params.t_total
-        println(a.visit)
-        println("----------")
-        println(sum(a.visit, 3))
-        readline()
-        println(a.Q)
-        println("----------")
-        println(sum(a.Q, 3))
-        readline()
-    end=#
-
-    policy!(a)
-    a.state = (a.s.chan, div(a.s.B_empty, buf_interval) + 1)
-    a.visit[a.s.chan, a.state[2], a.a] += 1
-
-    if a.a == idle_action
-        return idle(a)
-    end
-
-    chan = int8(fld(a.a - 1, n_p_levels) + 1)
-
-    switch!(a.s, chan)
-
-    if sense(a, env, detect_traffic)
-        return idle(a)
-    end
-
-    a.P_tx = Params.P_levels[(a.a - 1) % n_p_levels + 1]
-    a.bitrate = capacity(env.channels[a.s.chan], a.P_tx, a.s.pos)
-    pkgs_to_send = min(a.s.B_max - a.s.B_empty, floor(a.s.t_remaining * a.bitrate / Params.pkt_size))
-
-    if pkgs_to_send == 0
-        return idle(a)
-    end
-
-    transmit!(a.s, a.P_tx, env, pkgs_to_send)
 end
 
 function alpha(a :: IndividualQ)

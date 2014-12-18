@@ -28,7 +28,7 @@ if !isdir(output_dir)
 end
 
 const goodness = shuffle!(append!(2 * ones(Int, n_good_channel), ones(Int, n_channel - n_good_channel)))
-const agent_types = [RandomChannel] # , IndividualQ, OptHighestSNR]
+const agent_types = [RandomChannel, IndividualQ, OptHighestSNR]
 
 # generate ith channel
 function genchan(i)
