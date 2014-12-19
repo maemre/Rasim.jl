@@ -3,7 +3,7 @@
 module Rasim
 
 if !isinteractive()
-    print("Loading modules...")
+    print("Loading modules... ")
 end
 
 using Params
@@ -28,7 +28,7 @@ if !isdir(output_dir)
 end
 
 const goodness = shuffle!(append!(2 * ones(Int, n_good_channel), ones(Int, n_channel - n_good_channel)))
-const agent_types = [RandomChannel, IndividualQ, OptHighestSNR]
+const agent_types = [CooperativeQ, RandomChannel, IndividualQ, OptHighestSNR]
 
 # generate ith channel
 function genchan(i)
@@ -49,6 +49,8 @@ function run_simulation(AgentT, at_no :: Int)
     trajectories = Array(Point{Float64}, t_total, n_agent) # trajectories for a single run
     transmissions = zeros(n_runs, n_agent, t_total) # channels tried for transmission
     channel_traf = zeros(Int8, n_channel, n_runs, t_total)
+    Q = zeros(n_agent, int(Params.n_channel), Params.buf_levels + 1, Params.n_channel * length(Params.P_levels) + 1)
+    expertness = zeros(n_agent)
 
     channels = [genchan(i) for i=1:n_channel]
     traffics = [SimpleTraffic() for i=1:n_channel]
@@ -75,6 +77,7 @@ function run_simulation(AgentT, at_no :: Int)
             for traf in traffics
                 Simple.iterate(traf)
             end
+
             # get initial actions
             actions = PriorityQueue{Action, Float64}()
             for a in agents
@@ -86,6 +89,52 @@ function run_simulation(AgentT, at_no :: Int)
             @simd for i=1:n_agent
                 @inbounds buf_overflow[n_run, i, t] = agents[i].s.buf_overflow
                 @inbounds buf_levels[n_run, i, t] = B - agents[i].s.B_empty
+            end
+
+            if AgentT == CooperativeQ
+                # join Cooperative Q learners
+                if t > Params.t_saturation && t % Params.sharingperiod < 2 * Params.n_agent * Params.timeQ
+                    tt = t % Params.sharingperiod
+                    i = fld(tt, Params.timeQ) + 1
+                    if tt < Params.n_agent * Params.timeQ
+                        # receiving complete, update combined Q matrix
+                        # using only positive expertness ones
+                        if tt - (i-1) * Params.timeQ == Params.timeQ - 1
+                            Q[i,:,:,:] = agents[i].expertness .* agents[i].Q
+                            expertness[i] = agents[i].expertness
+                        end
+                    else
+                        i -= n_agent
+                        # sending complete, update agent's Q matrix
+                        if tt - (i+n_agent-1) * Params.timeQ == Params.timeQ - 1
+                            fill!(agents[i].Q, 0)
+                            # learning from experts (LE)
+                            # choose some experts randomly
+                            experts = zeros(Bool, n_agent)
+                            for e in shuffle!([[x for x=1:i-1],[x for x=i+1:n_agent]])[1:fld(n_agent, 2)]
+                                experts[e] = true
+                            end
+                            for j=1:n_agent
+                                if i == j
+                                    weight = 1 - Params.trustQ
+                                elseif !experts[j]
+                                    continue
+                                else
+                                    if expertness[j] > expertness[i]
+                                        weight = Params.trustQ * (expertness[j] - expertness[i])
+                                        # normalize
+                                        weight ./= sum((expertness - expertness[i]) .* (experts & (expertness .> expertness[i])))
+                                    else
+                                        continue
+                                    end
+                                end
+                                agents[i].Q += weight * reshape(Q[j,:,:,:], size(agents[i].Q))
+                            end
+                            agents[i].expertness = 0.
+                        end
+                    end
+                    #agents[i].s.E_slot += Params.P_tx * t_slot # add control channel energy overhead
+                end
             end
 
             last_actions = Array(Action, Params.n_agent)
@@ -147,6 +196,10 @@ function run_simulation(AgentT, at_no :: Int)
                 elseif collided[i]
                     feedback(agents[i], Collision)
                     rates[1] += 1
+                    # count PU collisions
+                    if traffics[act.chan].occupier == 0
+                        rates[5] += 1
+                    end
                     continue
                 elseif isa(act, Transmit)
                     ch = channels[act.chan]

@@ -137,8 +137,9 @@ function initial_action(a :: Agent, env :: Environment, t :: Int64)
     move!(a.s, t)
     s :: AgentState = a.s
     s.n_pkt_slot = 0
+    s.t_remaining = Params.t_slot
     # Add backoff
-    s.t_remaining = Params.t_slot - Params.t_backoff * rand()
+    idle(a, Params.t_backoff * rand())
     s.E_slot = 0
     s.E_sw = 0
     s.E_tx = 0
