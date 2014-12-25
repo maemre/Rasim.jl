@@ -51,6 +51,10 @@ function run_simulation(AgentT, at_no :: Int)
     channel_traf = zeros(Int8, n_channel, n_runs, t_total)
     Q = zeros(n_agent, int(Params.n_channel), Params.buf_levels + 1, Params.n_channel * length(Params.P_levels) + 1)
     expertness = zeros(n_agent)
+    pkt_sent = zeros(Int, n_agent)
+    rawtimeQ = 0
+    interference = zeros(n_channel, n_agent)
+    release_time = zeros(n_channel)
 
     channels = [genchan(i) for i=1:n_channel]
     traffics = [SimpleTraffic() for i=1:n_channel]
@@ -71,6 +75,8 @@ function run_simulation(AgentT, at_no :: Int)
 
         for t=1:t_total
             # iterate environment
+            fill!(release_time, 0)
+
             for traf in traffics
                 iterate(traf)
             end
@@ -96,11 +102,12 @@ function run_simulation(AgentT, at_no :: Int)
                 @inbounds buf_levels[n_run, i, t] = B - agents[i].s.B_empty
             end
 
-            if AgentT == CooperativeQ
+            if n_agent > 1 && AgentT == CooperativeQ
                 # join Cooperative Q learners
                 if t > Params.t_saturation && t % Params.sharingperiod < 2 * Params.n_agent * Params.timeQ
                     tt = t % Params.sharingperiod
                     i = fld(tt, Params.timeQ) + 1
+                    # sending phase (from CR)
                     if tt < Params.n_agent * Params.timeQ
                         # receiving complete, update combined Q matrix
                         # using only positive expertness ones
@@ -108,12 +115,23 @@ function run_simulation(AgentT, at_no :: Int)
                             Q[i,:,:,:] = agents[i].expertness .* agents[i].Q
                             expertness[i] = agents[i].expertness
                         end
-                    else
+                        if tt == (i - 1) * Params.timeQ
+                            # initialize control channel usage overhead
+                            rawtimeQ = Params.rawtimeQ
+                        end
+                        # Calculate control channel energy overhead
+                        if rawtimeQ > 1
+                            agents[i].s.E_slot += Params.P_tx * t_slot # add control channel energy overhead
+                        else
+                            agents[i].s.E_slot += Params.P_tx * t_slot * rawtimeQ # add control channel energy overhead
+                        end
+                        rawtimeQ -= 1 # doesn't matter when rawtimeQ < 1, it'll be reset anyways
+                    else # receiving phase (to CR)
                         i -= n_agent
                         # sending complete, update agent's Q matrix
                         if tt - (i+n_agent-1) * Params.timeQ == Params.timeQ - 1
                             #fill!(agents[i].Q, 0)
-                            # keep up-to-date Q ;-)
+                            # use up-to-date Q function on CR's side
                             weight = 1 - Params.trustQ
                             agents[i].Q *= weight #* reshape(Q[j,:,:,:], size(agents[i].Q))
                             # learning from experts (LE)
@@ -136,10 +154,9 @@ function run_simulation(AgentT, at_no :: Int)
                                     end
                                 end
                             end
-                            agents[i].expertness = 0 #1 - Params.trustQ
+                            agents[i].expertness = 0 # *= 1 - Params.trustQ
                         end
                     end
-                    agents[i].s.E_slot += Params.P_tx * t_slot # add control channel energy overhead
                 end
             end
 
@@ -148,6 +165,7 @@ function run_simulation(AgentT, at_no :: Int)
             # whether agents[i] has collided
             collided = zeros(Bool, n_agent)
             # resolve all actions
+            fill!(pkt_sent, 0)
             while ! isempty(actions)
                 action, tt = peek(actions)
                 a = agents[action.i]
@@ -155,27 +173,64 @@ function run_simulation(AgentT, at_no :: Int)
                 if isa(action, Switch)
                     switch!(agents[action.i], action.chan)
                     enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
+                    last_actions[action.i] = action
                 elseif isa(action, Sense)
                     enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
+                    last_actions[action.i] = action
                 elseif isa(action, Transmit)
                     i = action.chan
                     traffics[i].occupancy = min(tt, traffics[i].occupancy)
                     # add interference
                     interfere!(channels[i], action.power, agents[action.i].s.pos)
-                    # use first occupier data to mark as collided
-                    if traffics[i].occupier > -1
-                        collided[action.i] = true
+                    interference[i, :] = max(interference[i, :], channels[i].interference)
+                    # keep current interference
+                    interference[i, action.i] = channels[i].interference
+                    # use previous occupier data to mark as collided
+                    if traffics[i].occupier > -1 && traffics[i].occupier != action.i
                         if traffics[i].occupier > 0
                             collided[traffics[i].occupier] = true # also mark the occupier
+                            if release_time[i] > tt
+                                collided[action.i] = true
+                            end
+                        else
+                            collided[action.i] = true
                         end
-                    else
-                        # I'm the first occupier
+                    end
+                    if traffics[i].occupier != 0
+                        # mark self as occupier
                         traffics[i].occupier = action.i
                     end
-                    enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
-                end
-                if ! (isa(action, Idle) && isdefined(last_actions, int(action.i)) && isa(last_actions[action.i], Transmit))
+                    release_time[i] = max(release_time[i], tt + Params.pkt_size / action.bitrate)
+                    # Enqueue end of this transmission
+                    enqueue!(actions, EndTransmission(action), tt + Params.pkt_size / action.bitrate)
                     last_actions[action.i] = action
+                elseif isa(action, EndTransmission)
+                    #= 
+                    Remove interference. Order of this is important, o/w we'll interpret
+                    our signal as part of interference.
+                    =#
+                    prev_interference = channels[action.chan].interference
+                    interfere!(channels[action.chan], - action.power, a.s.pos)
+                    tmp = channels[action.chan].interference
+                    # change channel interference for us, then bring it back
+                    channels[action.chan].interference = interference[action.chan, action.i] - (prev_interference - tmp)
+                    # if no PU collision
+                    if ! traffics[i].traffic
+                        # Resolve transmission result
+                        pkt_sent[action.i] += transmission_successes(channels[action.chan], action.power, action.bitrate, a.s.pos.x, a.s.pos.y)
+                    end
+                    # bring interference back
+                    channels[action.chan].interference = tmp
+                    # Enqueue next action
+                    if action.n_pkt > 1
+                        enqueue!(actions, Transmit(action), tt)
+                    else
+                        enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
+                    end
+                else # Idle case
+                    if !(isdefined(last_actions, int(action.i)) && isa(last_actions[action.i], Transmit))
+                        last_actions[action.i] = action
+                    end
                 end
             end
 
@@ -202,55 +257,39 @@ function run_simulation(AgentT, at_no :: Int)
                     rates[4] += 1
                     continue
                 elseif collided[i]
-                    #=feedback(agents[i], Collision)
-                    rates[1] += 1
-                    # count PU collisions
-                    if traffics[act.chan].occupier == 0
-                        rates[5] += 1
-                    end=#
-                    # Switching to interference-based collision scheme
-                    if traffics[act.chan].occupier == 0
+                    # interference-based collision scheme for SUs
+                    # collision with PU
+                    if traffics[act.chan].traffic
                         rates[5] += 1
                         rates[1] += 1
+                        feedback(agents[i], Collision)
                     else
-                        # remove interference caused by me, it is signal power
-                        interfere!(channels[act.chan], - act.power, a.s.pos)
-                        ch = channels[act.chan]
-                        pkt_sent = transmission_successes(ch, act.power, act.bitrate, act.n_pkt, a.s.pos.x, a.s.pos.y)
-                        
                         # Complete SU Collision
-                        if pkt_sent == 0
+                        if pkt_sent[i] == 0
                             feedback(agents[i], Collision)
                             rates[1] += 1
                         else
                             # We did sent some packages, albeit collision
-                            feedback(agents[i], Success, false, pkt_sent)
-                            rates[2] += pkt_sent / act.n_pkt
-                            rates[3] += act.n_pkt - pkt_sent
+                            feedback(agents[i], Success, false, pkt_sent[i])
+                            rates[2] += pkt_sent[i] / a.s.n_pkt_slot
+                            rates[3] += (a.s.n_pkt_slot - pkt_sent[i]) / a.s.n_pkt_slot
                             # collect bit transmission statistics
-                            bits[i, t] = pkt_sent * Params.pkt_size
+                            bits[i, t] = pkt_sent[i] * Params.pkt_size
                         end
-                        # put back the interference
-                        interfere!(channels[act.chan], act.power, a.s.pos)
                     end
                 elseif isa(act, Transmit)
-                    # remove interference caused by me, it is signal power
-                    interfere!(channels[act.chan], - act.power, a.s.pos)
                     ch = channels[act.chan]
-                    pkt_sent = transmission_successes(ch, act.power, act.bitrate, act.n_pkt, a.s.pos.x, a.s.pos.y)
                     
-                    if pkt_sent == 0
+                    if pkt_sent[i] == 0
                         feedback(agents[i], LostInChannel)
                     else
-                        feedback(agents[i], Success, false, pkt_sent)
+                        feedback(agents[i], Success, false, pkt_sent[i])
                     end
 
-                    rates[2] += pkt_sent / act.n_pkt
-                    rates[3] += act.n_pkt - pkt_sent
+                    rates[2] += pkt_sent[i] / a.s.n_pkt_slot
+                    rates[3] += (a.s.n_pkt_slot - pkt_sent[i]) / a.s.n_pkt_slot
                     # collect bit transmission statistics
-                    bits[i, t] = pkt_sent * Params.pkt_size
-                    # put back the interference
-                    interfere!(channels[act.chan], act.power, a.s.pos)
+                    bits[i, t] = pkt_sent[i] * Params.pkt_size
                 end
             end
         end

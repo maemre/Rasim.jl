@@ -38,7 +38,7 @@ const states = eye(size(Params.noise, 1))
 
 function interfere!(c :: GilbertChannel, power, pos)
     d = sqrt(pos.x ^ 2 + pos.y ^ 2)
-    power *= (3e8 / (4 * pi * d * c.freq))
+    power *= (3e8 / (4 * pi * d * c.freq)) .^ 2
     c.interference += power
 end
 
@@ -50,26 +50,32 @@ function iterate!(c :: GilbertChannel)
 end
 
 function berawgn(c :: GilbertChannel, E_b)
-    0.5 * exp(- E_b / (toWatt(c.n0) + c.interference))
+    0.5 * erfc(sqrt(E_b / (toWatt(c.n0) + c.interference)))
 end
 
 function capacity(c :: GilbertChannel, power, pos)
     d = sqrt(pos.x ^ 2 + pos.y ^ 2)
-    power *= (3e8 / (4 * pi * d * c.freq))
-    c.bandwidth * log2(1 + power / c.noise)
+    power *= (3e8 / (4 * pi * d * c.freq)) .^ 2
+    # Do not use Shannon capacity, since we're using QPSK
+    # and it's suboptimal
+    # c.bandwidth * log2(1 + power / c.noise)
+    # Assuming we're using a fixed bitrate
+    Params.bitrate
 end
 
-function transmission_successes(c :: GilbertChannel, power, bitrate, n_pkt, x, y)
+function transmission_successes(c :: GilbertChannel, power, bitrate, x, y)
     # apply Friis transmission eqn to get received power
     d = sqrt(x ^ 2 + y ^ 2)
     P_r = power * (3e8 / (4 * pi * d * c.freq))
     # compute energy per bit
-    t = n_pkt * Params.pkt_size / bitrate
+    t = Params.pkt_size / bitrate # * n_pkt
     E_b = P_r * t / Params.pkt_size
     # compute per-packet success rate
     success_rate = exp(log1p(-berawgn(c, E_b)) * Params.pkt_size)
 
-    int16(rand(Binomial(n_pkt, success_rate)))
+    #rand(Binomial(n_pkt, success_rate))
+    # we're generating single packets now
+    rand(Bernoulli(success_rate))
 end
 
 end

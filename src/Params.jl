@@ -15,9 +15,9 @@ const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(300 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(60 / t_slot)) # convert seconds to time slots
 # total number of agents
-const n_agent = int8(5)
+const n_agent = int8(1)
 # number of stationary agents
 const n_stationary_agent = div(n_agent, 2)
 # number of channels
@@ -58,11 +58,13 @@ const P_rec = 40 # W
 # channel parameters
 const base_freq = 9e8 # 900 MHz
 const chan_bw = 1e6 # 1 MHz
+# allowed bitrate
+const bitrate = 3.75e6 # 1 Mbps
 # state transition probabilities, first state is good state
 const chan_trans_prob = [0.95 0.05; 0.4 0.6]'
 # channel noises for each channel type (type 1, type 2 etc)
 const P_sig = todBm(P_tx/chan_bw) # signal power density in dBm
-const noise = [P_sig - 65 P_sig - 55; -174 P_sig - 70]
+const noise = [-98 -95; -174 -100]
 
 #traffic parameters
 const traffic_trans_prob =  [0.9 0.1; 0.4 0.6]'
@@ -75,10 +77,12 @@ const t_saturation = 1000
 const sharingperiod = 500
 # size of Q matrix, used for data sharing computation
 const sizeQ = 64 * n_channel * (buf_levels + 1) * (n_channel * length(P_levels) + 1)
-# capacity of control channel, assuming SNR of channel is 5 dB = sqrt(10)
-const controlcapacity = 1e6 * log2(1 + 10 .^ 0.5)
-# time required for an agent to send/receive Q matrix
+# capacity of control channel, assuming SNR of channel is 7 dB
+const controlcapacity = 1e6 * log2(1 + 10 .^ 0.7)
+# time slots required for an agent to send/receive Q matrix
 const timeQ = int(ceil(sizeQ ./ controlcapacity ./ t_slot))
+# time required for an agent to send/receive Q matrix
+const rawtimeQ = sizeQ ./ controlcapacity ./ t_slot
 # trust to others' experiences
 const trustQ = 0.1
 

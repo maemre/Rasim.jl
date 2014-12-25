@@ -8,7 +8,7 @@ using Traffic.Simple
 export AgentState, Environment, Agent, Result, Success, Collision, BufOverflow, LostInChannel,
        Action, Transmit, Sense, Idle, move, fillbuffer, idle, act_then_idle, sense, feedback,
        switch!, transmit!, Status, Initialized, Switched, Sensed, Transmitted, initial_action,
-       act, switch, Switch
+       act, switch, Switch, EndTransmission
 
 type Environment
     channels :: Vector{GilbertChannel}
@@ -89,6 +89,17 @@ type Transmit <: Action
     i :: Int8
 end
 
+type EndTransmission <: Action
+    power :: Float64
+    bitrate :: Float64
+    chan :: Int8
+    n_pkt :: Int16
+    i :: Int8
+    EndTransmission(t::Transmit) = new(t.power,t.bitrate,t.chan,t.n_pkt,t.i)
+end
+
+Transmit(t::EndTransmission) = Transmit(t.power,t.bitrate,t.chan,t.n_pkt-1,t.i)
+
 type Idle <: Action
     i :: Int8
 end
@@ -112,6 +123,7 @@ function fillbuffer(a :: Agent)
     pkgs = rand(Params.pkt_min:(Params.pkt_max + 1))
     if pkgs > s.B_empty
         s.buf_overflow = true
+        error("Buffer overflow, fuck!")
         feedback(a, BufOverflow)
         s.B_empty = 0
     else
@@ -161,7 +173,7 @@ function sense(a :: Agent, env :: Environment, detect_traffic :: Function)
     Sense(s.chan, s.id)
 end
 
-function feedback(s :: AgentState, res :: Result, idle :: Bool = false, n_pkt :: Int16 = int16(0))
+function feedback(s :: AgentState, res :: Result, idle :: Bool = false, n_pkt :: Int = 0)
     if idle || res == BufOverflow
         return 
     elseif res == Success
@@ -174,7 +186,7 @@ function feedback(s :: AgentState, res :: Result, idle :: Bool = false, n_pkt ::
     nothing
 end
 
-function feedback(a :: Agent, res :: Result, idle :: Bool = false, n_pkt :: Int16 = int16(0))
+function feedback(a :: Agent, res :: Result, idle :: Bool = false, n_pkt :: Int = 0)
     feedback(a.s, res, idle, n_pkt)
 end
 

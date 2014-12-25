@@ -87,7 +87,7 @@ function alpha(a :: CooperativeQ)
     return 0.2 + 0.8 / (1 + a.visit[a.state[1], a.state[2], a.a])
 end
 
-function BaseAgent.feedback(a :: CooperativeQ, res :: Result, idle :: Bool = false, n_pkt :: Int16 = int16(0))
+function BaseAgent.feedback(a :: CooperativeQ, res :: Result, idle :: Bool = false, n_pkt :: Int = 0)
     feedback(a.s, res, idle, n_pkt)
     # if we didn't take any action that's worth learning, return immediately
     if a.a == -1
