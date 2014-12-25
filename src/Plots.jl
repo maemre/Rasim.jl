@@ -15,6 +15,7 @@ end
 
 p_ee = PlotFig()
 p_ee_conv = PlotFig()
+p_th = PlotFig()
 
 function initplots()
     p_ee.p = FramedPlot(
@@ -25,6 +26,10 @@ function initplots()
             title="EE vs Time (1201 Pt Average)",
             xlabel="Time (time slots)",
             ylabel="EE (b/E) (b/J)")
+    p_th.p = FramedPlot(
+            title="Throughput vs Time (1201 Pt Average)",
+            xlabel="Time (time slots)",
+            ylabel="Throughput (b)")
 end
 
 function plot_ee(energies, bits, agent, i)
@@ -36,13 +41,17 @@ function plot_ee(energies, bits, agent, i)
     setattr(ee_conv, "label", agent)
     add(p_ee_conv.p, ee_conv)
     push!(p_ee_conv.l, ee_conv)
+    th = Curve(1:t_total-2399, conv(vec(sum(bits, 1)), fill(1./1201, 1201))[1201:end-1200], color=colors[i])
+    setattr(th, "label", agent)
+    add(p_th.p, th)
+    push!(p_th.l, th)
     nothing
 end
 
 function displayplots()
-    for p in [p_ee, p_ee_conv]
+    for p in [p_ee, p_ee_conv, p_th]
         f=figure()
-        add(p.p, Legend(.8, .8, p.l))
+        add(p.p, Legend(.7, .7, p.l))
         display(p.p)
         figure(f)
         savefig(string(getattr(p.p, "title"), ".png"))
