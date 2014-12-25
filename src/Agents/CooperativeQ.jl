@@ -111,6 +111,8 @@ function BaseAgent.feedback(a :: CooperativeQ, res :: Result, idle :: Bool = fal
     Q_now = a.Q[a.state[1], a.state[2], a.a]
     a.Q[a.state[1], a.state[2], a.a] += alpha(a) * (r + discount * max_Q_next - Q_now)
     # Update expertness
-    a.expertness += r # sum of reinforcements for now
+    if r < 0
+        a.expertness += r # sum of reinforcements for now
+    end
     nothing
 end
