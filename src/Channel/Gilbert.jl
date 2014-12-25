@@ -4,7 +4,7 @@ using Distributions
 import Params
 using Util
 
-export GilbertChannel, iterate, berawgn, capacity, transmission_successes
+export GilbertChannel, iterate!, interfere!, berawgn, capacity, transmission_successes
 
 type GilbertChannel
     # channel frequency, in Hz
@@ -14,6 +14,7 @@ type GilbertChannel
     noise :: Float64 # noise, in watt
     n0 :: Float64 # noise density, in dBm
     state :: Int # current state
+    interference :: Float64 # current interference in the channel
     # noises, in dBmW
     noises :: Array{Float64, 1}
     A :: Array{Float64, 2} # transition probabilities
@@ -26,6 +27,7 @@ type GilbertChannel
         c.bandwidth = Params.chan_bw
         c.n0 = c.noises[c.state]
         c.noise = toWatt(c.n0) * c.bandwidth
+        c.interference = 0
         c.A = A
         c
     end
@@ -34,14 +36,21 @@ end
 
 const states = eye(size(Params.noise, 1))
 
-function iterate(c :: GilbertChannel)
+function interfere!(c :: GilbertChannel, power, pos)
+    d = sqrt(pos.x ^ 2 + pos.y ^ 2)
+    power *= (3e8 / (4 * pi * d * c.freq))
+    c.interference += power
+end
+
+function iterate!(c :: GilbertChannel)
     c.state = rand(Categorical(c.A[:, c.state]))
     c.n0 = c.noises[c.state]
     c.noise = toWatt(c.n0) * c.bandwidth
+    c.interference = 0
 end
 
 function berawgn(c :: GilbertChannel, E_b)
-    0.5 * exp(- E_b / toWatt(c.n0))
+    0.5 * exp(- E_b / (toWatt(c.n0) + c.interference))
 end
 
 function capacity(c :: GilbertChannel, power, pos)

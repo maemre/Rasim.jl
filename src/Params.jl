@@ -15,7 +15,7 @@ const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(600 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(300 / t_slot)) # convert seconds to time slots
 # total number of agents
 const n_agent = int8(5)
 # number of stationary agents
@@ -70,9 +70,9 @@ const traffic_probs = [0.3; 0.7]
 
 # Q learning parameters
 # saturation time of initial values
-const t_saturation = 2000
+const t_saturation = 1000
 # period of sharing experiences
-const sharingperiod = 300
+const sharingperiod = 500
 # size of Q matrix, used for data sharing computation
 const sizeQ = 64 * n_channel * (buf_levels + 1) * (n_channel * length(P_levels) + 1)
 # capacity of control channel, assuming SNR of channel is 5 dB = sqrt(10)
@@ -80,7 +80,7 @@ const controlcapacity = 1e6 * log2(1 + 10 .^ 0.5)
 # time required for an agent to send/receive Q matrix
 const timeQ = int(ceil(sizeQ ./ controlcapacity ./ t_slot))
 # trust to others' experiences
-const trustQ = 0.01
+const trustQ = 0.1
 
 const prefix = @sprintf("%d-%d-%d-%d-%d-%d-%d-%f", n_runs, t_total, n_agent, n_channel, n_good_channel, buf_levels, pkt_size, beta_idle)
 

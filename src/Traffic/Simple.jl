@@ -3,7 +3,7 @@ module Simple
 import Params
 using Distributions
 
-export SimpleTraffic, detect_traffic
+export SimpleTraffic, detect_traffic, iterate
 
 type SimpleTraffic
     traffic_probs :: Array{Float64, 1} # traffic probabilities of states

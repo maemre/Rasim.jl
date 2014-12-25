@@ -71,11 +71,16 @@ function run_simulation(AgentT, at_no :: Int)
 
         for t=1:t_total
             # iterate environment
-            for c in channels
-                iterate(c)
-            end
             for traf in traffics
-                Simple.iterate(traf)
+                iterate(traf)
+            end
+            
+            for i=1:endof(channels)
+                iterate!(channels[i])
+                if traffics[i].traffic
+                    # add interference from a stationary PU, we may change this in the future
+                    interfere!(channels[i], Params.P_tx, Point(Params.r_init / 2, 0.))
+                end
             end
 
             # get initial actions
@@ -107,7 +112,10 @@ function run_simulation(AgentT, at_no :: Int)
                         i -= n_agent
                         # sending complete, update agent's Q matrix
                         if tt - (i+n_agent-1) * Params.timeQ == Params.timeQ - 1
-                            fill!(agents[i].Q, 0)
+                            #fill!(agents[i].Q, 0)
+                            # keep up-to-date Q ;-)
+                            weight = 1 - Params.trustQ
+                            agents[i].Q *= weight #* reshape(Q[j,:,:,:], size(agents[i].Q))
                             # learning from experts (LE)
                             # choose some experts randomly
                             experts = zeros(Bool, n_agent)
@@ -116,27 +124,26 @@ function run_simulation(AgentT, at_no :: Int)
                             end
                             for j=1:n_agent
                                 if i == j
-                                    weight = 1 - Params.trustQ
+                                    continue
                                 elseif !experts[j]
                                     continue
                                 else
                                     if expertness[j] > expertness[i]
                                         weight = Params.trustQ * (expertness[j] - expertness[i])
                                         # normalize
-                                        weight ./= sum((expertness - expertness[i]) .* (experts & (expertness .> expertness[i])))
-                                    else
-                                        continue
+                                        weight ./= sum((expertness - expertness[i]) .* (expertness .> expertness[i]))
+                                    agents[i].Q += weight * reshape(Q[j,:,:,:], size(agents[i].Q))
                                     end
                                 end
-                                agents[i].Q += weight * reshape(Q[j,:,:,:], size(agents[i].Q))
                             end
-                            agents[i].expertness = 0.
+                            agents[i].expertness = 0 #1 - Params.trustQ
                         end
                     end
-                    #agents[i].s.E_slot += Params.P_tx * t_slot # add control channel energy overhead
+                    agents[i].s.E_slot += Params.P_tx * t_slot # add control channel energy overhead
                 end
             end
 
+            # interpret actions
             last_actions = Array(Action, Params.n_agent)
             # whether agents[i] has collided
             collided = zeros(Bool, n_agent)
@@ -153,13 +160,16 @@ function run_simulation(AgentT, at_no :: Int)
                 elseif isa(action, Transmit)
                     i = action.chan
                     traffics[i].occupancy = min(tt, traffics[i].occupancy)
+                    # add interference
+                    interfere!(channels[i], action.power, agents[action.i].s.pos)
                     # use first occupier data to mark as collided
                     if traffics[i].occupier > -1
                         collided[action.i] = true
                         if traffics[i].occupier > 0
-                            collided[traffics[i].occupier] = true # I'm the first occupier
+                            collided[traffics[i].occupier] = true # also mark the occupier
                         end
                     else
+                        # I'm the first occupier
                         traffics[i].occupier = action.i
                     end
                     enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
@@ -172,9 +182,7 @@ function run_simulation(AgentT, at_no :: Int)
             # resolve collisions
             for i=1:n_agent
                 if isa(last_actions[i], Transmit)
-                    if ! collided[i]
-                        transmissions[n_run, i, t] = last_actions[i].chan
-                    end
+                    transmissions[n_run, i, t] = last_actions[i].chan
                 else
                     transmissions[n_run, i, t] = 0
                 end
@@ -194,14 +202,40 @@ function run_simulation(AgentT, at_no :: Int)
                     rates[4] += 1
                     continue
                 elseif collided[i]
-                    feedback(agents[i], Collision)
+                    #=feedback(agents[i], Collision)
                     rates[1] += 1
                     # count PU collisions
                     if traffics[act.chan].occupier == 0
                         rates[5] += 1
+                    end=#
+                    # Switching to interference-based collision scheme
+                    if traffics[act.chan].occupier == 0
+                        rates[5] += 1
+                        rates[1] += 1
+                    else
+                        # remove interference caused by me, it is signal power
+                        interfere!(channels[act.chan], - act.power, a.s.pos)
+                        ch = channels[act.chan]
+                        pkt_sent = transmission_successes(ch, act.power, act.bitrate, act.n_pkt, a.s.pos.x, a.s.pos.y)
+                        
+                        # Complete SU Collision
+                        if pkt_sent == 0
+                            feedback(agents[i], Collision)
+                            rates[1] += 1
+                        else
+                            # We did sent some packages, albeit collision
+                            feedback(agents[i], Success, false, pkt_sent)
+                            rates[2] += pkt_sent / act.n_pkt
+                            rates[3] += act.n_pkt - pkt_sent
+                            # collect bit transmission statistics
+                            bits[i, t] = pkt_sent * Params.pkt_size
+                        end
+                        # put back the interference
+                        interfere!(channels[act.chan], act.power, a.s.pos)
                     end
-                    continue
                 elseif isa(act, Transmit)
+                    # remove interference caused by me, it is signal power
+                    interfere!(channels[act.chan], - act.power, a.s.pos)
                     ch = channels[act.chan]
                     pkt_sent = transmission_successes(ch, act.power, act.bitrate, act.n_pkt, a.s.pos.x, a.s.pos.y)
                     
@@ -215,6 +249,8 @@ function run_simulation(AgentT, at_no :: Int)
                     rates[3] += act.n_pkt - pkt_sent
                     # collect bit transmission statistics
                     bits[i, t] = pkt_sent * Params.pkt_size
+                    # put back the interference
+                    interfere!(channels[act.chan], act.power, a.s.pos)
                 end
             end
         end
@@ -244,7 +280,9 @@ function run_simulation(AgentT, at_no :: Int)
     if verbose
         println("Throughput: ", sum(avg_bits))
         println("Efficiency: ", sum(avg_bits)/sum(avg_energies))
-        plot_ee(avg_energies, avg_bits, string(AgentT), at_no)
+        if !isinteractive()
+            plot_ee(avg_energies, avg_bits, string(AgentT), at_no)
+        end
     end
     
     if Params.debug
