@@ -25,7 +25,6 @@ const beta_overflow = 1000
 const beta_idle = Params.beta_idle # coefficient of cost of staying idle
 const beta_md = 1 # misdetection punishment coefficient
 const beta_loss = 4 # punishment for data loss in channel
-const beta_sense = 20. # punishment for data loss in channel
 const epsilon = 0.05 # exploration probability
 const discount = 0.2 # discount factor, gamma
 const buf_interval = div(Params.B + 1, Params.buf_levels)
@@ -95,9 +94,7 @@ function BaseAgent.feedback(a :: CooperativeQ, res :: Result, idle :: Bool = fal
         return nothing
     end
     r :: Float64 = 0
-    if idle && a.status == Sensed
-        r = - beta_sense * a.s.E_slot
-    elseif idle
+    if idle
         r = - beta_idle * a.s.E_slot
     elseif res == Success
         K = a.P_tx ^ 2 * Params.t_slot / (Params.chan_bw ^ 2 / a.bitrate)
