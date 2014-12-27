@@ -123,7 +123,6 @@ function fillbuffer(a :: Agent)
     pkgs = rand(Params.pkt_min:(Params.pkt_max + 1))
     if pkgs > s.B_empty
         s.buf_overflow = true
-        error("Buffer overflow, fuck!")
         feedback(a, BufOverflow)
         s.B_empty = 0
     else
