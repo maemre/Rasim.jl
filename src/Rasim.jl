@@ -15,7 +15,15 @@ using HDF5, JLD
 using Movement
 using Plots
 using Base.Collections
+using Util
 
+type Event
+    t :: Float64
+    a :: Action
+end
+
+# I'd define Base.<, but it was giving me all sorts of errors
+Base.isless(e1 :: Event, e2 :: Event) = e1.t < e2.t # generated code for < is shorter for Floats
 
 if !isinteractive()
     println("DONE!")
@@ -90,11 +98,8 @@ function run_simulation(AgentT, at_no :: Int)
             end
 
             # get initial actions
-            actions = PriorityQueue{Action, Float64}()
-            for a in agents
-                time = Params.t_slot - a.s.t_remaining
-                enqueue!(actions, initial_action(a, env, t), time)
-            end
+            actions = [Event(Params.t_slot - a.s.t_remaining, initial_action(a, env, t)) for a in agents]
+            heapify!(actions)
             # save initial statistics
             trajectories[t, :] = [a.s.pos for a in agents]
             @simd for i=1:n_agent
@@ -167,15 +172,16 @@ function run_simulation(AgentT, at_no :: Int)
             # resolve all actions
             fill!(pkt_sent, 0)
             while ! isempty(actions)
-                action, tt = peek(actions)
+                event = heappop!(actions)
+                action = event.a
+                tt = event.t
                 a = agents[action.i]
-                dequeue!(actions)
                 if isa(action, Switch)
                     switch!(agents[action.i], action.chan)
-                    enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
+                    heappush!(actions, Event(Params.t_slot - a.s.t_remaining, act(a, env, t)))
                     last_actions[action.i] = action
                 elseif isa(action, Sense)
-                    enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
+                    heappush!(actions, Event(Params.t_slot - a.s.t_remaining, act(a, env, t)))
                     last_actions[action.i] = action
                 elseif isa(action, Transmit)
                     i = action.chan
@@ -202,7 +208,7 @@ function run_simulation(AgentT, at_no :: Int)
                     end
                     release_time[i] = max(release_time[i], tt + Params.pkt_size / action.bitrate)
                     # Enqueue end of this transmission
-                    enqueue!(actions, EndTransmission(action), tt + Params.pkt_size / action.bitrate)
+                    heappush!(actions, Event(Params.t_slot - a.s.t_remaining, EndTransmission(action)))
                     last_actions[action.i] = action
                 elseif isa(action, EndTransmission)
                     #= 
@@ -223,9 +229,9 @@ function run_simulation(AgentT, at_no :: Int)
                     channels[action.chan].interference = tmp
                     # Enqueue next action
                     if action.n_pkt > 1
-                        enqueue!(actions, Transmit(action), tt)
+                        heappush!(actions, Event(Params.t_slot - a.s.t_remaining, Transmit(action)))
                     else
-                        enqueue!(actions, act(a, env, t), Params.t_slot - a.s.t_remaining)
+                        heappush!(actions, Event(Params.t_slot - a.s.t_remaining, act(a, env, t)))
                     end
                 else # Idle case
                     if !(isdefined(last_actions, int(action.i)) && isa(last_actions[action.i], Transmit))
