@@ -11,9 +11,10 @@ using Agents.BaseAgent
 using Agents
 using Traffic.Simple
 using Channel.Gilbert
-using HDF5, JLD
+using HDF5
+using JLD
 using Movement
-using Plots
+#using Plots
 using Base.Collections
 using Util
 
@@ -29,21 +30,24 @@ if !isinteractive()
     println("DONE!")
 end
 
-output_dir = joinpath("data/", prefix)
-
-if !isdir(output_dir)
-    mkpath(output_dir, 0o755)
-end
-
-const goodness = shuffle!(append!(2 * ones(Int, n_good_channel), ones(Int, n_channel - n_good_channel)))
 const agent_types = [CooperativeQ, RandomChannel, IndividualQ, OptHighestSNR]
 
 # generate ith channel
-function genchan(i)
+function genchan(i, P)
+    goodness = shuffle!(append!(2 * ones(Int, P.n_good_channel), ones(Int, n_channel - P.n_good_channel)))
     GilbertChannel(base_freq + chan_bw * i, noise[goodness[i], :], chan_trans_prob)
 end
 
-function run_simulation(AgentT, at_no :: Int)
+function run_simulation(AgentT, at_no :: Int, P :: ParamT)
+    const output_dir = joinpath("data/", P.prefix)
+    const n_agent = P.n_agent
+    const sharingperiod = P.sharingperiod
+    # size of Q matrix, used for data sharing computation
+    const sizeQ = 64 * n_channel * (P.buf_levels + 1) * (n_channel * length(P_levels) + 1)
+    # time slots required for an agent to send/receive Q matrix
+    const timeQ = int(ceil(sizeQ ./ Params.controlcapacity ./ t_slot))
+    # time required for an agent to send/receive Q matrix
+    const rawtimeQ0 = sizeQ ./ Params.controlcapacity ./ t_slot
     avg_energies = zeros(n_agent, t_total)
     avg_bits = zeros(n_agent, t_total)
     en_idle = zeros(n_agent, t_total)
@@ -55,23 +59,22 @@ function run_simulation(AgentT, at_no :: Int)
     init_positions = Array(Point{Float64}, n_runs, n_agent)
     last_positions = Array(Point{Float64}, n_runs, n_agent)
     trajectories = Array(Point{Float64}, t_total, n_agent) # trajectories for a single run
-    transmissions = zeros(n_runs, n_agent, t_total) # channels tried for transmission
-    channel_traf = zeros(Int8, n_channel, n_runs, t_total)
-    Q = zeros(n_agent, int(Params.n_channel), Params.buf_levels + 1, Params.n_channel * length(Params.P_levels) + 1)
+    transmission_channels = zeros(n_runs, n_agent, t_total) # channels tried for transmission
+    Q = zeros(n_agent, int(Params.n_channel), P.buf_levels + 1, Params.n_channel * length(Params.P_levels) + 1)
     expertness = zeros(n_agent)
     pkt_sent = zeros(Int, n_agent)
     rawtimeQ = 0
     interference = zeros(n_channel, n_agent)
     release_time = zeros(n_channel)
 
-    channels = [genchan(i) for i=1:n_channel]
+    channels = [genchan(i, P) for i=1:n_channel]
     traffics = [SimpleTraffic() for i=1:n_channel]
     env = Environment(channels, traffics)
 
     println("Agent type: ", AgentT)
 
     for n_run=1:n_runs
-        agents = [AgentT(i) for i::Int8=1:n_agent]
+        agents = [AgentT(i, P) for i::Int8=1:n_agent]
         init_positions[n_run, :] = [a.s.pos for a in agents]
         energies = zeros(n_agent, t_total)
         bits = zeros(n_agent, t_total)
@@ -98,7 +101,7 @@ function run_simulation(AgentT, at_no :: Int)
             end
 
             # get initial actions
-            actions = [Event(Params.t_slot - a.s.t_remaining, initial_action(a, env, t)) for a in agents]
+            actions = [Event(Params.t_slot - a.s.t_remaining, initial_action(a, env, t, P)) for a in agents]
             heapify!(actions)
             # save initial statistics
             trajectories[t, :] = [a.s.pos for a in agents]
@@ -109,20 +112,20 @@ function run_simulation(AgentT, at_no :: Int)
 
             if n_agent > 1 && AgentT == CooperativeQ
                 # join Cooperative Q learners
-                if t > Params.t_saturation && t % Params.sharingperiod < 2 * Params.n_agent * Params.timeQ
-                    tt = t % Params.sharingperiod
-                    i = fld(tt, Params.timeQ) + 1
+                if t > Params.t_saturation && t % sharingperiod < 2 * n_agent * timeQ
+                    tt = t % sharingperiod
+                    i = fld(tt, timeQ) + 1
                     # sending phase (from CR)
-                    if tt < Params.n_agent * Params.timeQ
+                    if tt < n_agent * timeQ
                         # receiving complete, update combined Q matrix
                         # using only positive expertness ones
-                        if tt - (i-1) * Params.timeQ == Params.timeQ - 1
+                        if tt - (i-1) * timeQ == timeQ - 1
                             Q[i,:,:,:] = agents[i].expertness .* agents[i].Q
                             expertness[i] = agents[i].expertness
                         end
-                        if tt == (i - 1) * Params.timeQ
+                        if tt == (i - 1) * timeQ
                             # initialize control channel usage overhead
-                            rawtimeQ = Params.rawtimeQ
+                            rawtimeQ = rawtimeQ0
                         end
                         # Calculate control channel energy overhead
                         if rawtimeQ > 1
@@ -134,7 +137,7 @@ function run_simulation(AgentT, at_no :: Int)
                     else # receiving phase (to CR)
                         i -= n_agent
                         # sending complete, update agent's Q matrix
-                        if tt - (i+n_agent-1) * Params.timeQ == Params.timeQ - 1
+                        if tt - (i+n_agent-1) * timeQ == timeQ - 1
                             #fill!(agents[i].Q, 0)
                             # use up-to-date Q function on CR's side
                             weight = 1 - Params.trustQ
@@ -166,7 +169,7 @@ function run_simulation(AgentT, at_no :: Int)
             end
 
             # interpret actions
-            last_actions = Array(Action, Params.n_agent)
+            last_actions = Array(Action, n_agent)
             # whether agents[i] has collided
             collided = zeros(Bool, n_agent)
             # resolve all actions
@@ -243,9 +246,9 @@ function run_simulation(AgentT, at_no :: Int)
             # resolve collisions
             for i=1:n_agent
                 if isa(last_actions[i], Transmit)
-                    transmissions[n_run, i, t] = last_actions[i].chan
+                    transmission_channels[n_run, i, t] = last_actions[i].chan
                 else
-                    transmissions[n_run, i, t] = 0
+                    transmission_channels[n_run, i, t] = 0
                 end
             end
 
@@ -328,32 +331,40 @@ function run_simulation(AgentT, at_no :: Int)
         if !isinteractive()
             plot_ee(avg_energies, avg_bits, string(AgentT), at_no)
         end
-    end
-    
-    if Params.debug
-        println("Energies")
-        println(cumsum(sum(avg_energies, 1), 2))
-        println("Bits")
-        println(cumsum(sum(avg_bits, 1), 2))
-        println("Efficiency")
-        println(cumsum(sum(avg_energies, 1), 2) ./ cumsum(sum(avg_bits, 1), 2))
-        readline()
+
+        if Params.debug
+            println("Energies")
+            println(cumsum(sum(avg_energies, 1), 2))
+            println("Bits")
+            println(cumsum(sum(avg_bits, 1), 2))
+            println("Efficiency")
+            println(cumsum(sum(avg_energies, 1), 2) ./ cumsum(sum(avg_bits, 1), 2))
+            readline()
+        end
     end
 
-    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits en_idle en_sense en_sw en_tx buf_overflow buf_levels init_positions last_positions trajectories transmissions channel_traf
+    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits en_idle en_sense en_sw en_tx buf_overflow buf_levels init_positions last_positions trajectories transmission_channels
 end
 
-if !isinteractive()
+function run_whole_simulation(P :: ParamT)
+    output_dir = joinpath("data/", P.prefix)
+
+    if !isdir(output_dir)
+        mkpath(output_dir, 0o755)
+    end
+    
     if verbose
         initplots()
     end
     for i=1:endof(agent_types)
-        run_simulation(agent_types[i], i)
+        run_simulation(agent_types[i], i, P)
     end
     if verbose
         displayplots()
         readline()
     end
+    println("DONE", P.prefix)
+    nothing
 end
 
 end # module

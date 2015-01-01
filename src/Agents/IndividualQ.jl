@@ -16,23 +16,23 @@ type IndividualQ <: Agent
     P_tx :: Float64
     bitrate :: Float64
     status :: Status
+    buf_interval :: Int
+    beta_idle :: Int
 end
 
 const n_p_levels = length(Params.P_levels)
 const idle_action = Params.n_channel * n_p_levels + 1
 const beta_overflow = 1000
-const beta_idle = Params.beta_idle # coefficient cost of staying idle
 const beta_md = 1 # misdetection punishment coefficient
 const beta_loss = 4 # punishment for data loss in channel
 const epsilon = 0.05 # exploration probability
 const discount = 0.2 # discount factor, gamma
-const buf_interval = div(Params.B + 1, Params.buf_levels)
 
-function IndividualQ(i)
-    Q = rand(int(Params.n_channel), Params.buf_levels + 1, idle_action)
+function IndividualQ(i, P)
+    Q = rand(int(Params.n_channel), P.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
-    visit = zeros(Params.n_channel, Params.buf_levels + 1, idle_action)
-    IndividualQ(AgentState(i), Q, visit, 0, (0, 0), 0, 0, Initialized)
+    visit = zeros(Params.n_channel, P.buf_levels + 1, idle_action)
+    IndividualQ(AgentState(i, P), Q, visit, 0, (0, 0), 0, 0, Initialized,  div(Params.B + 1, P.buf_levels), P.beta_idle)
 end
 
 function policy!(a :: IndividualQ)
@@ -40,7 +40,7 @@ function policy!(a :: IndividualQ)
     if rand() < epsilon
         a.a = rand(1:idle_action)
     else
-        a.a = indmax(a.Q[a.s.chan, div(a.s.B_empty, buf_interval) + 1, :])
+        a.a = indmax(a.Q[a.s.chan, div(a.s.B_empty, a.buf_interval) + 1, :])
     end
     nothing
 end
@@ -53,7 +53,7 @@ function BaseAgent.act(a :: IndividualQ, env, t)
         end
 
         policy!(a)
-        a.state = (a.s.chan, div(a.s.B_empty, buf_interval) + 1)
+        a.state = (a.s.chan, div(a.s.B_empty, a.buf_interval) + 1)
         a.visit[a.s.chan, a.state[2], a.a] += 1
 
         if a.a == idle_action
@@ -94,7 +94,7 @@ function BaseAgent.feedback(a :: IndividualQ, res :: Result, idle :: Bool = fals
     end
     r :: Float64 = 0
     if idle
-        r = - beta_idle * a.s.E_slot
+        r = - a.beta_idle * a.s.E_slot
     elseif res == Success
         K = a.P_tx ^ 2 * Params.t_slot / (Params.chan_bw ^ 2 / a.bitrate)
         r = K * Params.pkt_size * n_pkt / a.s.E_slot
@@ -106,7 +106,7 @@ function BaseAgent.feedback(a :: IndividualQ, res :: Result, idle :: Bool = fals
         return nothing
     end
     # UPDATE Q
-    max_Q_next = maximum(a.Q[a.s.chan, floor(a.s.B_empty / buf_interval) + 1])
+    max_Q_next = maximum(a.Q[a.s.chan, floor(a.s.B_empty / a.buf_interval) + 1])
     Q_now = a.Q[a.state[1], a.state[2], a.a]
     a.Q[a.state[1], a.state[2], a.a] += alpha(a) * (r + discount * max_Q_next - Q_now)
     nothing

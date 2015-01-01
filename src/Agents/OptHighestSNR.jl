@@ -9,7 +9,7 @@ export OptHighestSNR
 type OptHighestSNR <: Agent
     s :: AgentState
     status :: Status
-    OptHighestSNR(i) = new(AgentState(i), Initialized)
+    OptHighestSNR(i, P) = new(AgentState(i, P), Initialized)
 end
 
 #=

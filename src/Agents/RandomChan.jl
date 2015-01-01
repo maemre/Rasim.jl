@@ -9,7 +9,7 @@ export RandomChannel
 type RandomChannel <: Agent
     s :: AgentState
     status :: Status
-    RandomChannel(i) = new(AgentState(i))
+    RandomChannel(i, P) = new(AgentState(i, P))
 end
 
 function BaseAgent.act(a :: RandomChannel, env, t)

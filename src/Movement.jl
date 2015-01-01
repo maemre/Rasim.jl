@@ -19,7 +19,7 @@ function Point(T :: DataType)
     Point(zero(T), zero(T))
 end
 
-+(a :: Point, b :: Point) = Point(a.x+b.x, a.y+b.y)
++(a :: Point, b :: Point) = Point(a.x + b.x, a.y + b.y)
 
 #=
 Return a function that makes a random walk according to a
