@@ -38,9 +38,9 @@ function genchan(i, P)
     GilbertChannel(base_freq + chan_bw * i, noise[goodness[i], :], chan_trans_prob)
 end
 
-function run_simulation(AgentT, at_no :: Int, P :: ParamT)
+function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: ParamT)
     const output_dir = joinpath("data/", P.prefix)
-    const n_agent = P.n_agent
+    const n_agent = int(P.n_agent)
     const sharingperiod = P.sharingperiod
     # size of Q matrix, used for data sharing computation
     const sizeQ = 64 * n_channel * (P.buf_levels + 1) * (n_channel * length(P_levels) + 1)
@@ -56,10 +56,8 @@ function run_simulation(AgentT, at_no :: Int, P :: ParamT)
     en_tx = zeros(n_agent, t_total)
     buf_overflow = zeros(Bool, n_runs, n_agent, t_total)
     buf_levels = zeros(Int16, n_runs, n_agent, t_total)
-    init_positions = Array(Point{Float64}, n_runs, n_agent)
-    last_positions = Array(Point{Float64}, n_runs, n_agent)
     trajectories = Array(Point{Float64}, t_total, n_agent) # trajectories for a single run
-    transmission_channels = zeros(n_runs, n_agent, t_total) # channels tried for transmission
+    transmission_channels = zeros(Int8, n_runs, n_agent, t_total) # channels tried for transmission
     Q = zeros(n_agent, int(Params.n_channel), P.buf_levels + 1, Params.n_channel * length(Params.P_levels) + 1)
     expertness = zeros(n_agent)
     pkt_sent = zeros(Int, n_agent)
@@ -71,11 +69,10 @@ function run_simulation(AgentT, at_no :: Int, P :: ParamT)
     traffics = [SimpleTraffic() for i=1:n_channel]
     env = Environment(channels, traffics)
 
-    println("Agent type: ", AgentT)
+    println("Agent type: ", AgentT, " - ", P.iteration)
 
     for n_run=1:n_runs
         agents = [AgentT(i, P) for i::Int8=1:n_agent]
-        init_positions[n_run, :] = [a.s.pos for a in agents]
         energies = zeros(n_agent, t_total)
         bits = zeros(n_agent, t_total)
         if verbose
@@ -86,7 +83,7 @@ function run_simulation(AgentT, at_no :: Int, P :: ParamT)
 
         for t=1:t_total
             # iterate environment
-            fill!(release_time, 0)
+            fill!(release_time, 0.)
 
             for traf in traffics
                 iterate(traf)
@@ -104,7 +101,7 @@ function run_simulation(AgentT, at_no :: Int, P :: ParamT)
             actions = [Event(Params.t_slot - a.s.t_remaining, initial_action(a, env, t, P)) for a in agents]
             heapify!(actions)
             # save initial statistics
-            trajectories[t, :] = [a.s.pos for a in agents]
+            @inbounds trajectories[t, :] = [a.s.pos for a in agents]
             @simd for i=1:n_agent
                 @inbounds buf_overflow[n_run, i, t] = agents[i].s.buf_overflow
                 @inbounds buf_levels[n_run, i, t] = B - agents[i].s.B_empty
@@ -174,71 +171,74 @@ function run_simulation(AgentT, at_no :: Int, P :: ParamT)
             collided = zeros(Bool, n_agent)
             # resolve all actions
             fill!(pkt_sent, 0)
-            while ! isempty(actions)
-                event = heappop!(actions)
-                action = event.a
-                tt = event.t
-                a = agents[action.i]
-                if isa(action, Switch)
-                    switch!(agents[action.i], action.chan)
-                    heappush!(actions, Event(Params.t_slot - a.s.t_remaining, act(a, env, t)))
-                    last_actions[action.i] = action
-                elseif isa(action, Sense)
-                    heappush!(actions, Event(Params.t_slot - a.s.t_remaining, act(a, env, t)))
-                    last_actions[action.i] = action
-                elseif isa(action, Transmit)
-                    i = action.chan
-                    traffics[i].occupancy = min(tt, traffics[i].occupancy)
-                    # add interference
-                    interfere!(channels[i], action.power, agents[action.i].s.pos)
-                    interference[i, :] = max(interference[i, :], channels[i].interference)
-                    # keep current interference
-                    interference[i, action.i] = channels[i].interference
-                    # use previous occupier data to mark as collided
-                    if traffics[i].occupier > -1 && traffics[i].occupier != action.i
-                        if traffics[i].occupier > 0
-                            collided[traffics[i].occupier] = true # also mark the occupier
-                            if release_time[i] > tt
-                                collided[action.i] = true
-                            end
-                        else
-                            collided[action.i] = true
-                        end
-                    end
-                    if traffics[i].occupier != 0
-                        # mark self as occupier
-                        traffics[i].occupier = action.i
-                    end
-                    release_time[i] = max(release_time[i], tt + Params.pkt_size / action.bitrate)
-                    # Enqueue end of this transmission
-                    heappush!(actions, Event(Params.t_slot - a.s.t_remaining, EndTransmission(action)))
-                    last_actions[action.i] = action
-                elseif isa(action, EndTransmission)
-                    #= 
-                    Remove interference. Order of this is important, o/w we'll interpret
-                    our signal as part of interference.
-                    =#
-                    prev_interference = channels[action.chan].interference
-                    interfere!(channels[action.chan], - action.power, a.s.pos)
-                    tmp = channels[action.chan].interference
-                    # change channel interference for us, then bring it back
-                    channels[action.chan].interference = interference[action.chan, action.i] - (prev_interference - tmp)
-                    # if no PU collision
-                    if ! traffics[i].traffic
-                        # Resolve transmission result
-                        pkt_sent[action.i] += transmission_successes(channels[action.chan], action.power, action.bitrate, a.s.pos.x, a.s.pos.y)
-                    end
-                    # bring interference back
-                    channels[action.chan].interference = tmp
-                    # Enqueue next action
-                    if action.n_pkt > 1
-                        heappush!(actions, Event(Params.t_slot - a.s.t_remaining, Transmit(action)))
-                    else
+            @inbounds begin
+                while ! isempty(actions)
+                    const event = heappop!(actions)
+                    const action = event.a
+                    const tt = event.t
+                    const agentid = int(action.i)
+                    a = agents[agentid]
+                    if isa(action, Switch)
+                        switch!(agents[agentid], action.chan)
                         heappush!(actions, Event(Params.t_slot - a.s.t_remaining, act(a, env, t)))
-                    end
-                else # Idle case
-                    if !(isdefined(last_actions, int(action.i)) && isa(last_actions[action.i], Transmit))
-                        last_actions[action.i] = action
+                        last_actions[agentid] = action
+                    elseif isa(action, Sense)
+                        heappush!(actions, Event(Params.t_slot - a.s.t_remaining, act(a, env, t)))
+                        last_actions[agentid] = action
+                    elseif isa(action, Transmit)
+                        i = int(action.chan)
+                        traffics[i].occupancy = min(tt, traffics[i].occupancy)
+                        # add interference
+                        interfere!(channels[i], action.power, a.s.pos)
+                        interference[i, :] = max(interference[i, :], channels[i].interference)
+                        # keep current interference
+                        interference[i, agentid] = channels[i].interference
+                        # use previous occupier data to mark as collided
+                        if traffics[i].occupier > -1 && traffics[i].occupier != agentid
+                            if traffics[i].occupier > 0
+                                collided[traffics[i].occupier] = true # also mark the occupier
+                                if release_time[i] > tt
+                                    collided[agentid] = true
+                                end
+                            else
+                                collided[agentid] = true
+                            end
+                        end
+                        if traffics[i].occupier != 0
+                            # mark self as occupier
+                            traffics[i].occupier = agentid
+                        end
+                        release_time[i] = max(release_time[i], tt + Params.pkt_size / action.bitrate)
+                        # Enqueue end of this transmission
+                        heappush!(actions, Event(Params.t_slot - a.s.t_remaining, EndTransmission(action)))
+                        last_actions[agentid] = action
+                    elseif isa(action, EndTransmission)
+                        #= 
+                        Remove interference. Order of this is important, o/w we'll interpret
+                        our signal as part of interference.
+                        =#
+                        prev_interference = channels[action.chan].interference
+                        interfere!(channels[action.chan], - action.power, a.s.pos)
+                        tmp = channels[action.chan].interference
+                        # change channel interference for us, then bring it back
+                        channels[action.chan].interference = interference[action.chan, agentid] - (prev_interference - tmp)
+                        # if no PU collision
+                        if ! traffics[i].traffic
+                            # Resolve transmission result
+                            pkt_sent[agentid] += transmission_successes(channels[action.chan], action.power, action.bitrate, a.s.pos.x, a.s.pos.y)
+                        end
+                        # bring interference back
+                        channels[action.chan].interference = tmp
+                        # Enqueue next action
+                        if action.n_pkt > 1
+                            heappush!(actions, Event(Params.t_slot - a.s.t_remaining, Transmit(action)))
+                        else
+                            heappush!(actions, Event(Params.t_slot - a.s.t_remaining, act(a, env, t)))
+                        end
+                    else # Idle case
+                        if !(isdefined(last_actions, int(agentid)) && isa(last_actions[agentid], Transmit))
+                            last_actions[agentid] = action
+                        end
                     end
                 end
             end
@@ -246,19 +246,23 @@ function run_simulation(AgentT, at_no :: Int, P :: ParamT)
             # resolve collisions
             for i=1:n_agent
                 if isa(last_actions[i], Transmit)
-                    transmission_channels[n_run, i, t] = last_actions[i].chan
+                    transmission_channels[n_run, i, t] = int8(last_actions[i].chan)
                 else
-                    transmission_channels[n_run, i, t] = 0
+                    transmission_channels[n_run, i, t] = int8(0)
                 end
+            end
+
+            @simd for i=1:n_agent
+                @inbounds a = agents[i]
+                @inbounds energies[i, t] = a.s.E_slot
+                @inbounds en_idle[i, t] += a.s.E_idle
+                @inbounds en_sense[i, t] += a.s.E_sense
+                @inbounds en_tx[i, t] += a.s.E_tx
+                @inbounds en_sw[i, t] += a.s.E_sw
             end
 
             for i=1:n_agent
                 a = agents[i]
-                energies[i, t] = a.s.E_slot
-                en_idle[i, t] += a.s.E_idle
-                en_sense[i, t] += a.s.E_sense
-                en_tx[i, t] += a.s.E_tx
-                en_sw[i, t] += a.s.E_sw
                 act = last_actions[i]
 
                 if isa(act, Idle)
@@ -307,7 +311,6 @@ function run_simulation(AgentT, at_no :: Int, P :: ParamT)
         avg_bits += bits
 
         rates[5] /= t_total * n_channel / 100
-        last_positions[n_run, :] = [a.s.pos for a in agents]
 
         if verbose
             println("Collisions: ", rates[1])
@@ -343,7 +346,7 @@ function run_simulation(AgentT, at_no :: Int, P :: ParamT)
         end
     end
 
-    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits en_idle en_sense en_sw en_tx buf_overflow buf_levels init_positions last_positions trajectories transmission_channels
+    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits en_idle en_sense en_sw en_tx buf_overflow buf_levels trajectories transmission_channels
 end
 
 function run_whole_simulation(P :: ParamT)
@@ -363,7 +366,7 @@ function run_whole_simulation(P :: ParamT)
         displayplots()
         readline()
     end
-    println("DONE", P.prefix)
+    println("DONE ", P.iteration)
     nothing
 end
 

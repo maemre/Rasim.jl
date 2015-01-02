@@ -2,4 +2,4 @@
 
 @everywhere using Params, Rasim
 
-pmap(Rasim.run_whole_simulation, genparams())
+pmap(Rasim.run_whole_simulation, shuffle(genparams()))

@@ -14,7 +14,7 @@ const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(6 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(60 / t_slot)) # convert seconds to time slots
 # number of channels
 const n_channel = int8(5)
 # radius of initial map
@@ -76,21 +76,24 @@ type ParamT
     buf_levels :: Int
     pkt_max :: Int
     n_stationary_agent :: Int
+    iteration :: Int
+    prefix :: ASCIIString
     n_agent :: Int8
     n_good_channel :: Int8
-    prefix :: ASCIIString
 end
 
 
 function genparams()
     params = Array(ParamT,0)
+    i = 1
     for n_good_channel in int8([1, 3, 5])
         for n_agent in int8([1, 2, 4, 7])
             for pkt_max in [6, 10]
-                for buf_levels in [5, 20], beta_idle in [4, 10, 20]
+                for buf_levels in [12], beta_idle in [4, 10, 20]
                     for sharingperiod = [300, 500, 1000]
                         prefix = @sprintf("%d-%d-%d-%d-%d-%d-%d-%f-%d", n_runs, t_total, n_agent, n_channel, n_good_channel, buf_levels, pkt_max, beta_idle, sharingperiod)
-                        push!(params, ParamT(beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), n_agent, n_good_channel, prefix))
+                        push!(params, ParamT(beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel))
+                        i += 1
                     end
                 end
             end
