@@ -13,6 +13,7 @@ using Traffic.Simple
 using Channel.Gilbert
 using HDF5
 using JLD
+using MAT
 using Movement
 #using Plots
 using Base.Collections
@@ -54,7 +55,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     en_sense = zeros(n_agent, t_total)
     en_sw = zeros(n_agent, t_total)
     en_tx = zeros(n_agent, t_total)
-    buf_overflow = zeros(Bool, n_runs, n_agent, t_total)
+    buf_overflow = falses(n_runs, n_agent, t_total)
     buf_levels = zeros(Int16, n_runs, n_agent, t_total)
     trajectories = Array(Point{Float64}, t_total, n_agent) # trajectories for a single run
     transmission_channels = zeros(Int8, n_runs, n_agent, t_total) # channels tried for transmission
@@ -64,6 +65,9 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     rawtimeQ = 0
     interference = zeros(n_channel, n_agent)
     release_time = zeros(n_channel)
+    generated_packets = zeros(Int64, n_agent, n_runs)
+    tried_packets = zeros(Int64, n_agent, n_runs)
+    sent_packets = zeros(Int64, n_agent, n_runs)
 
     channels = [genchan(i, P) for i=1:n_channel]
     traffics = [SimpleTraffic() for i=1:n_channel]
@@ -105,6 +109,10 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
             @simd for i=1:n_agent
                 @inbounds buf_overflow[n_run, i, t] = agents[i].s.buf_overflow
                 @inbounds buf_levels[n_run, i, t] = B - agents[i].s.B_empty
+            end
+            @inbounds generated_packets[:, n_run] += buf_levels[n_run, :, t]'
+            if t > 1
+                @inbounds generated_packets[:, n_run] -= buf_levels[n_run, :, t - 1]'
             end
 
             if n_agent > 1 && AgentT == CooperativeQ
@@ -235,6 +243,8 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                         else
                             heappush!(actions, Event(Params.t_slot - a.s.t_remaining, act(a, env, t)))
                         end
+                        # collect statistics
+                        tried_packets[agentid, n_run] += 1
                     else # Idle case
                         if !(isdefined(last_actions, int(agentid)) && isa(last_actions[agentid], Transmit))
                             last_actions[agentid] = action
@@ -242,6 +252,9 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                     end
                 end
             end
+
+            # collect packet statistics
+            sent_packets[:, n_run] += pkt_sent
 
             # resolve collisions
             for i=1:n_agent
@@ -346,7 +359,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
         end
     end
 
-    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits en_idle en_sense en_sw en_tx buf_overflow buf_levels trajectories transmission_channels
+    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits en_idle en_sense en_sw en_tx buf_overflow buf_levels transmission_channels generated_packets tried_packets sent_packets
 end
 
 function run_whole_simulation(P :: ParamT)
