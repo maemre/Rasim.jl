@@ -13,9 +13,8 @@ using Traffic.Simple
 using Channel.Gilbert
 using HDF5
 using JLD
-using MAT
 using Movement
-using Plots
+#using Plots
 using Base.Collections
 using Util
 

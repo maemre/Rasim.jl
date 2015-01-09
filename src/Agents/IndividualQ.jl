@@ -86,7 +86,7 @@ function BaseAgent.feedback(a :: IndividualQ, res :: Result, idle :: Bool = fals
     end
     r :: Float64 = 0
     if idle
-        r = - a.beta_idle * a.s.E_slot
+        r = - a.beta_idle * a.bitrate * Params.t_slot / a.s.E_slot
     elseif res == Success
         K = 1 # a.P_tx ^ 2 * Params.t_slot / a.bitrate
         r = K * Params.pkt_size * n_pkt / a.s.E_slot
