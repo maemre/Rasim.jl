@@ -18,14 +18,14 @@ type CooperativeQ <: Agent
     status :: Status
     expertness :: Float64
     buf_interval :: Int
-    beta_idle :: Int
+    beta_idle :: Float64
 end
 
 const n_p_levels = length(Params.P_levels)
 const idle_action = Params.n_channel * n_p_levels + 1
 const beta_overflow = 1000
 const beta_md = 1 # misdetection punishment coefficient
-const beta_loss = 4 # punishment for data loss in channel
+const beta_loss = 2 # punishment for data loss in channel
 const epsilon = 0.05 # exploration probability
 const discount = 0.2 # discount factor, gamma
 
@@ -97,12 +97,12 @@ function BaseAgent.feedback(a :: CooperativeQ, res :: Result, idle :: Bool = fal
     if idle
         r = - a.beta_idle * a.s.E_slot
     elseif res == Success
-        K = a.P_tx ^ 2 * Params.t_slot / (Params.chan_bw ^ 2 / a.bitrate)
+        K = 1 # a.P_tx ^ 2 * Params.t_slot / a.bitrate
         r = K * Params.pkt_size * n_pkt / a.s.E_slot
     elseif res == Collision
-        r = - beta_md * a.s.E_slot
+        r = - beta_md * a.bitrate * Params.t_slot / a.s.E_slot
     elseif res == LostInChannel
-        r = - beta_loss * a.s.E_slot
+        r = - beta_loss * a.bitrate * Params.t_slot / a.s.E_slot
     else
         return nothing
     end
@@ -111,7 +111,7 @@ function BaseAgent.feedback(a :: CooperativeQ, res :: Result, idle :: Bool = fal
     Q_now = a.Q[a.state[1], a.state[2], a.a]
     a.Q[a.state[1], a.state[2], a.a] += alpha(a) * (r + discount * max_Q_next - Q_now)
     # Update expertness
-    if r < 0
+    if r > 0
         a.expertness += r # sum of reinforcements for now
     end
     nothing

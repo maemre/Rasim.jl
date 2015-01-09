@@ -5,7 +5,7 @@ using Params
 
 export initplots, plot_ee, displayplots
 
-const colors = ["blue"; "green"; "red"; "cyan"; "magenta"; "yellow"; "black"]
+const colors = ["cyan"; "green"; "red"; "blue"; "magenta"; "yellow"; "black"]
 
 type PlotFig
     l :: Array{Any, 1}
@@ -37,11 +37,11 @@ function plot_ee(energies, bits, agent, i)
     setattr(ee, "label", agent)
     add(p_ee.p, ee)
     push!(p_ee.l, ee)
-    ee_conv = Curve(1:t_total-2399, conv(vec(sum(bits, 1) ./ sum(energies, 1)), fill(1./1201, 1201))[1201:end-1200], color=colors[i])
+    ee_conv = Curve(1:t_total, conv(vec(sum(bits, 1) ./ sum(energies, 1)), fill(1./501, 501))[1:end-500], color=colors[i])
     setattr(ee_conv, "label", agent)
     add(p_ee_conv.p, ee_conv)
     push!(p_ee_conv.l, ee_conv)
-    th = Curve(1:t_total-2399, conv(vec(sum(bits, 1)), fill(1./1201, 1201))[1201:end-1200], color=colors[i])
+    th = Curve(1:t_total, conv(vec(sum(bits, 1)), fill(1./1201, 1201))[1:end-1200], color=colors[i])
     setattr(th, "label", agent)
     add(p_th.p, th)
     push!(p_th.l, th)

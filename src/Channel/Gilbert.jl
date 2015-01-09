@@ -50,7 +50,7 @@ function iterate!(c :: GilbertChannel)
 end
 
 function berawgn(c :: GilbertChannel, E_b)
-    0.5 * erfc(sqrt(E_b / (toWatt(c.n0) + c.interference)))
+    0.5 * erfc(sqrt(E_b / ((c.noise + c.interference) / c.bandwidth)))
 end
 
 function capacity(c :: GilbertChannel, power, pos)
@@ -66,13 +66,11 @@ end
 function transmission_successes(c :: GilbertChannel, power, bitrate, x, y)
     # apply Friis transmission eqn to get received power
     d = sqrt(x ^ 2 + y ^ 2)
-    P_r = power * (3e8 / (4 * pi * d * c.freq))
+    P_r = power * (3e8 / (4 * pi * d * c.freq)) .^ 2
     # compute energy per bit
-    t = Params.pkt_size / bitrate # * n_pkt
-    E_b = P_r * t / Params.pkt_size
+    E_b = P_r / bitrate
     # compute per-packet success rate
     success_rate = exp(log1p(-berawgn(c, E_b)) * Params.pkt_size)
-
     #rand(Binomial(n_pkt, success_rate))
     # we're generating single packets now
     rand(Bernoulli(success_rate))

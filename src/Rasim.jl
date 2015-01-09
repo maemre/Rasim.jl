@@ -15,7 +15,7 @@ using HDF5
 using JLD
 using MAT
 using Movement
-#using Plots
+using Plots
 using Base.Collections
 using Util
 
@@ -31,7 +31,7 @@ if !isinteractive()
     println("DONE!")
 end
 
-const agent_types = [CooperativeQ, RandomChannel, IndividualQ, OptHighestSNR]
+const agent_types = [OptHighestSNR, CooperativeQ, RandomChannel, IndividualQ]
 
 # generate ith channel
 function genchan(i, P)
@@ -68,6 +68,8 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     generated_packets = zeros(Int64, n_agent, n_runs)
     tried_packets = zeros(Int64, n_agent, n_runs)
     sent_packets = zeros(Int64, n_agent, n_runs)
+    init_distances = zeros(Float64, n_agent)
+    final_distances = zeros(Float64, n_agent)
 
     channels = [genchan(i, P) for i=1:n_channel]
     traffics = [SimpleTraffic() for i=1:n_channel]
@@ -84,6 +86,10 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
         end
 
         rates = zeros(5)
+
+        for a=agents
+            init_distances[a.s.id] += (a.s.pos.x .^ 2 + a.s.pos.y .^ 2)
+        end
 
         for t=1:t_total
             # iterate environment
@@ -334,6 +340,10 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
             println("Success: %", rates[2]/(t_total * n_agent - rates[4]) * 100)
             println("Collided Channels: %", rates[1]/(t_total * n_channel) * 100, "\n")
         end
+
+        for a=agents
+            final_distances[a.s.id] += (a.s.pos.x .^ 2 + a.s.pos.y .^ 2)
+        end
     end
     avg_energies /= n_runs
     avg_bits /= n_runs
@@ -358,8 +368,9 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
             readline()
         end
     end
-
-    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits en_idle en_sense en_sw en_tx buf_overflow buf_levels transmission_channels generated_packets tried_packets sent_packets
+    avg_buf_levels = mean(buf_levels)
+    avg_buf_overflows = mean(buf_overflow)
+    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets init_distances final_distances
 end
 
 function run_whole_simulation(P :: ParamT)

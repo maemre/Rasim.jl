@@ -17,16 +17,8 @@ type IndividualQ <: Agent
     bitrate :: Float64
     status :: Status
     buf_interval :: Int
-    beta_idle :: Int
+    beta_idle :: Float64
 end
-
-const n_p_levels = length(Params.P_levels)
-const idle_action = Params.n_channel * n_p_levels + 1
-const beta_overflow = 1000
-const beta_md = 1 # misdetection punishment coefficient
-const beta_loss = 4 # punishment for data loss in channel
-const epsilon = 0.05 # exploration probability
-const discount = 0.2 # discount factor, gamma
 
 function IndividualQ(i, P)
     Q = rand(int(Params.n_channel), P.buf_levels + 1, idle_action)
@@ -96,12 +88,12 @@ function BaseAgent.feedback(a :: IndividualQ, res :: Result, idle :: Bool = fals
     if idle
         r = - a.beta_idle * a.s.E_slot
     elseif res == Success
-        K = a.P_tx ^ 2 * Params.t_slot / (Params.chan_bw ^ 2 / a.bitrate)
+        K = 1 # a.P_tx ^ 2 * Params.t_slot / a.bitrate
         r = K * Params.pkt_size * n_pkt / a.s.E_slot
     elseif res == Collision
-        r = - beta_md * a.s.E_slot
+        r = - beta_md * a.bitrate * Params.t_slot / a.s.E_slot
     elseif res == LostInChannel
-        r = - beta_loss * a.s.E_slot
+        r = - beta_loss * a.bitrate * Params.t_slot / a.s.E_slot
     else
         return nothing
     end

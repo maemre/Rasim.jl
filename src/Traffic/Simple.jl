@@ -17,7 +17,7 @@ end
 
 function iterate(t :: SimpleTraffic)
     t.state = rand(Categorical(t.A[:, t.state]))
-    t.traffic = rand() <= t.traffic_probs[t.state]
+    t.traffic = rand(Bernoulli(t.traffic_probs[t.state]))
     t.occupancy = t.traffic ? 0 : Inf
     t.occupier = t.traffic ? 0 : -1
     nothing
