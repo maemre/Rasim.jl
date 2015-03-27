@@ -373,7 +373,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     end
     avg_buf_levels = mean(buf_levels)
     avg_buf_overflows = mean(buf_overflow)
-    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets init_distances final_distances
+    #@save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets init_distances final_distances
     #@save "trajectories.jld" trajectories
 end
 

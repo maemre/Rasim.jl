@@ -1,8 +1,8 @@
 println("Loading modules")
 using Params,Rasim#,ProfileView
 println("Initialization")
-Profile.init(10000000, 0.002)
-p=genparams()[end/3+end/4+18]
+#Profile.init(10000000, 0.002)
+p=genparams()[end/2]
 println("Pre-run")
 Rasim.run_whole_simulation(p)
 #=println("Timing")

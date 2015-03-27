@@ -6,7 +6,7 @@ export t_slot, prefix, batch_run, verbose, n_runs, t_total, n_agent, n_stationar
        r_init, B, pkt_size, b_size, pkt_min, pkt_max, base_freq, chan_bw, chan_trans_prob, noise, P_levels
 
 # Simulation parameters:
-const batch_run = true
+const batch_run = false
 const verbose = true && !batch_run
 const debug = false
 # number of runs
@@ -14,7 +14,7 @@ const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(60 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(300 / t_slot)) # convert seconds to time slots
 # number of channels
 const n_channel = int8(5)
 # radius of initial map
