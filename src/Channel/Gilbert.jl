@@ -63,6 +63,15 @@ function capacity(c :: GilbertChannel, power, pos)
     Params.bitrate
 end
 
+function success_prob(c :: GilbertChannel, E_b)
+    n = Params.pkt_size
+    k = Params.pkt_redundancy
+    p = berawgn(c, E_b)
+    # use binomial sum to calculate successful transmission probability
+    log_prob = logsumexp((k+1) .* [log1p(-p), log(p)]) - log1p(-2p) + (n-k) * log1p(-p)
+    exp(log_prob)
+end
+
 function transmission_successes(c :: GilbertChannel, power, bitrate, x, y)
     # apply Friis transmission eqn to get received power
     d = sqrt(x ^ 2 + y ^ 2)
@@ -70,7 +79,7 @@ function transmission_successes(c :: GilbertChannel, power, bitrate, x, y)
     # compute energy per bit
     E_b = P_r / bitrate
     # compute per-packet success rate
-    success_rate = exp(log1p(-berawgn(c, E_b)) * Params.pkt_size)
+    success_rate = success_prob(c, E_b)
     #rand(Binomial(n_pkt, success_rate))
     # we're generating single packets now
     rand(Bernoulli(success_rate))
