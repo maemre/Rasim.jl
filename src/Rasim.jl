@@ -47,7 +47,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     const n_agent = int(P.n_agent)
     const sharingperiod = P.sharingperiod
     # size of Q matrix, used for data sharing computation
-    const sizeQ = 64 * n_channel * (P.buf_levels + 1) * (n_channel * length(P_levels) + 1)
+    const sizeQ = Params.d_svd * 64 * (n_channel * (P.buf_levels + 1) + (n_channel * length(P_levels) + 1))
     # time slots required for an agent to send/receive Q matrix
     const timeQ = int(ceil(sizeQ ./ Params.controlcapacity ./ t_slot))
     # time required for an agent to send/receive Q matrix
@@ -62,7 +62,10 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     buf_levels = zeros(Int16, n_runs, n_agent, t_total)
     trajectories = Array(Point{Float64}, t_total, n_agent) # trajectories for a single run
     transmission_channels = zeros(Int8, n_runs, n_agent, t_total) # channels tried for transmission
-    Q = zeros(n_agent, int(Params.n_channel), P.buf_levels + 1, Params.n_channel * length(Params.P_levels) + 1)
+    # Q = zeros(n_agent, int(Params.n_channel), P.buf_levels + 1, Params.n_channel * length(Params.P_levels) + 1)
+    US = zeros(n_agent, int(Params.n_channel) * (P.buf_levels + 1), Params.d_svd)
+    Vt = zeros(n_agent, Params.d_svd, Params.n_channel * length(Params.P_levels) + 1)
+    shapeQ = (int(Params.n_channel) * (P.buf_levels + 1), Params.n_channel * length(Params.P_levels) + 1)
     expertness = zeros(n_agent)
     pkt_sent = zeros(Int, n_agent)
     rawtimeQ = 0
@@ -134,7 +137,9 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                         # receiving complete, update combined Q matrix
                         # using only positive expertness ones
                         if tt - (i-1) * timeQ == timeQ - 1
-                            Q[i,:,:,:] = agents[i].expertness .* agents[i].Q
+                            u, s, v = svd(reshape(agents[i].expertness .* agents[i].Q, shapeQ))
+                            US[i, :, :] = u[:,1:Params.d_svd]*diagm(s[1:Params.d_svd])
+                            Vt[i, :, :] = v'[1:Params.d_svd, :]
                             expertness[i] = agents[i].expertness
                         end
                         if tt == (i - 1) * timeQ
@@ -172,7 +177,9 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                                         weight = Params.trustQ * (expertness[j] - expertness[i])
                                         # normalize
                                         weight ./= sum((expertness - expertness[i]) .* (expertness .> expertness[i]))
-                                    agents[i].Q += weight * reshape(Q[j,:,:,:], size(agents[i].Q))
+                                        us = slice(US, (j, 1:size(US)[2], 1:size(US)[3]))
+                                        vt = slice(Vt, (j, 1:size(Vt)[2], 1:size(Vt)[3]))
+                                        agents[i].Q += weight * reshape(us * vt, size(agents[i].Q))
                                     end
                                 end
                             end

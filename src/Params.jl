@@ -31,6 +31,7 @@ const b_size = B * pkt_size
 # package rate for buffer traffic
 # defined as a discrete uniform distribution with parameters:
 const pkt_min = 0 # pkg / slot, inclusive
+const pkt_redundancy = 0.1 # redundancy (error resilience ratio) of packets
 
 # durations
 const t_sense = 0.1 * t_slot
@@ -67,6 +68,8 @@ const t_saturation = 1000
 const controlcapacity = 1e6 * log2(1 + 10 .^ 0.7)
 # trust to others' experiences
 const trustQ = 0.1
+# # of dimensions for SVD approximation
+const d_svd = 7
 
 export ParamT, genparams
 
