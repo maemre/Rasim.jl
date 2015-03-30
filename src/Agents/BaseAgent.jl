@@ -8,7 +8,7 @@ using Traffic.Simple
 export AgentState, Environment, Agent, Result, Success, Collision, BufOverflow, LostInChannel,
        Action, Transmit, Sense, Idle, move, fillbuffer, idle, act_then_idle, sense, feedback,
        switch!, transmit!, Status, Initialized, Switched, Sensed, Transmitted, initial_action,
-       act, switch, Switch, EndTransmission
+       act, switch, Switch, EndTransmission, initcoordinator, cooperate
 
 type Environment
     channels :: Vector{GilbertChannel}
@@ -227,5 +227,9 @@ end
 function act(a :: Agent)
     error("Not implemented")
 end
+
+initcoordinator{AgentT <: Agent}(:: Type{AgentT}, P :: ParamT) = Nothing()
+
+cooperate{AgentT <: Agent}(agents :: Vector{AgentT}, P :: ParamT, coordinator, t) = Nothing()
 
 end

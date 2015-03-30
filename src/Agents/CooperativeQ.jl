@@ -116,3 +116,94 @@ function BaseAgent.feedback(a :: CooperativeQ, res :: Result, idle :: Bool = fal
     end
     nothing
 end
+
+# Coordinator object for Cooperative Q
+type Coordinator
+    US :: Array{Float64, 3} # U*S where U*S*V' = svd(Q) for each agent
+    Vt :: Array{Float64, 3} # V' where U*S*V' = svd(Q) for each agent
+    function Coordinator(P :: ParamT)
+        c = new()
+        c.US = zeros(P.n_agent, int(Params.n_channel) * (P.buf_levels + 1), Params.d_svd)
+        c.Vt = zeros(P.n_agent, Params.d_svd, Params.n_channel * length(Params.P_levels) + 1)
+    end
+end
+
+function BaseAgent.initcoordinator(:: Type{CooperativeQ}, P :: ParamT)
+    return Coordinator(P)
+end
+
+function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordinator :: Coordinator, t)
+    const n_agent = int(P.n_agent)
+    const sharingperiod = P.sharingperiod
+    # size of US + size of Vt, used for data sharing time and energy computation
+    const sizeQ = Params.d_svd * 64 * (n_channel * (P.buf_levels + 1) + (n_channel * length(P_levels) + 1))
+    # time slots required for an agent to send/receive Q matrix by sending/receiving US & Vt
+    const timeQ = int(ceil(sizeQ ./ Params.controlcapacity ./ t_slot))
+    # time required for an agent to send/receive Q matrix by sending/receiving US & Vt
+    const rawtimeQ0 = sizeQ ./ Params.controlcapacity ./ t_slot
+    # Shape of the Q matrix
+    const shapeQ = (int(Params.n_channel) * (P.buf_levels + 1), Params.n_channel * length(Params.P_levels) + 1)
+    if n_agent > 1
+        US = coordinator.US
+        Vt = coordinator.Vt
+        # join Cooperative Q learners
+        if t > Params.t_saturation && t % sharingperiod < 2 * n_agent * timeQ
+            tt = t % sharingperiod
+            i = fld(tt, timeQ) + 1
+            # sending phase (from CR)
+            if tt < n_agent * timeQ
+                # receiving complete, update combined Q matrix
+                # using only positive expertness ones
+                if tt - (i-1) * timeQ == timeQ - 1
+                    u, s, v = svd(reshape(agents[i].expertness .* agents[i].Q, shapeQ))
+                    US[i, :, :] = u[:,1:Params.d_svd]*diagm(s[1:Params.d_svd])
+                    Vt[i, :, :] = v'[1:Params.d_svd, :]
+                    expertness[i] = agents[i].expertness
+                end
+                if tt == (i - 1) * timeQ
+                    # initialize control channel usage overhead
+                    rawtimeQ = rawtimeQ0
+                end
+                # Calculate control channel energy overhead
+                if rawtimeQ > 1
+                    agents[i].s.E_slot += Params.P_tx * t_slot # add control channel energy overhead
+                else
+                    agents[i].s.E_slot += Params.P_tx * t_slot * rawtimeQ # add control channel energy overhead
+                end
+                rawtimeQ -= 1 # doesn't matter when rawtimeQ < 1, it'll be reset anyways
+            else # receiving phase (to CR)
+                i -= n_agent
+                # sending complete, update agent's Q matrix
+                if tt - (i+n_agent-1) * timeQ == timeQ - 1
+                    #fill!(agents[i].Q, 0)
+                    # use up-to-date Q function on CR's side
+                    weight = 1 - Params.trustQ
+                    agents[i].Q *= weight #* reshape(Q[j,:,:,:], size(agents[i].Q))
+                    # learning from experts (LE)
+                    # choose some experts randomly
+                    experts = zeros(Bool, n_agent)
+                    for e in shuffle!([[x for x=1:i-1],[x for x=i+1:n_agent]])[1:fld(n_agent, 2)]
+                        experts[e] = true
+                    end
+                    for j=1:n_agent
+                        if i == j
+                            continue
+                        elseif !experts[j]
+                            continue
+                        else
+                            if expertness[j] > expertness[i]
+                                weight = Params.trustQ * (expertness[j] - expertness[i])
+                                # normalize
+                                weight ./= sum((expertness - expertness[i]) .* (expertness .> expertness[i]))
+                                us = slice(US, (j, 1:size(US)[2], 1:size(US)[3]))
+                                vt = slice(Vt, (j, 1:size(Vt)[2], 1:size(Vt)[3]))
+                                agents[i].Q += weight * reshape(us * vt, size(agents[i].Q))
+                            end
+                        end
+                    end
+                    agents[i].expertness = 0 # *= 1 - Params.trustQ
+                end
+            end
+        end
+    end
+end
