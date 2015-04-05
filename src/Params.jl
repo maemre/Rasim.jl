@@ -71,6 +71,10 @@ const trustQ = 0.1
 # # of dimensions for SVD approximation
 const d_svd = 7
 
+# detection and false alarm probabilities for diferent agent types
+const pd = [0.90, 0.96]
+const pf = [0.10, 0.04]
+
 export ParamT, genparams
 
 type ParamT

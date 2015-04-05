@@ -3,7 +3,7 @@ module Simple
 import Params
 using Distributions
 
-export SimpleTraffic, detect_traffic, iterate
+export SimpleTraffic, iterate
 
 type SimpleTraffic
     traffic_probs :: Array{Float64, 1} # traffic probabilities of states
@@ -21,15 +21,6 @@ function iterate(t :: SimpleTraffic)
     t.occupancy = t.traffic ? 0 : Inf
     t.occupier = t.traffic ? 0 : -1
     nothing
-end
-
-# detection and false alarm probabilities
-const pd = 0.9
-const pf = 0.1
-
-function detect_traffic(t :: SimpleTraffic, t_remaining :: Float64)
-    sensing = t.occupancy < (Params.t_slot - t_remaining - 0.5 * Params.t_sense)
-    rand() < (sensing ? pd : pf)
 end
 
 end

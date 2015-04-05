@@ -66,7 +66,7 @@ function BaseAgent.act(a :: CooperativeQ, env, t)
     elseif a.status == Switched
         return sense(a, env, detect_traffic)
     elseif a.status == Sensed
-        if detect_traffic(env.traffics[a.s.chan], a.s.t_remaining)
+        if detect_traffic(a.s, env.traffics[a.s.chan], a.s.t_remaining)
             return idle(a)
         else
             a.P_tx = Params.P_levels[(a.a - 1) % n_p_levels + 1]

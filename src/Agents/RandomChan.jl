@@ -23,7 +23,7 @@ function BaseAgent.act(a :: RandomChannel, env, t)
     elseif a.status == Switched
         return sense(a, env, detect_traffic)
     elseif a.status == Sensed
-        if detect_traffic(env.traffics[a.s.chan], a.s.t_remaining)
+        if detect_traffic(a.s, env.traffics[a.s.chan], a.s.t_remaining)
             return idle(a)
         else
             P_tx = Params.P_levels[rand(1:endof(Params.P_levels))]

@@ -40,6 +40,7 @@ function interfere!(c :: GilbertChannel, power, pos)
     d = sqrt(pos.x ^ 2 + pos.y ^ 2)
     power *= (3e8 / (4 * pi * d * c.freq)) .^ 2
     c.interference += power
+    nothing
 end
 
 function iterate!(c :: GilbertChannel)
@@ -47,6 +48,7 @@ function iterate!(c :: GilbertChannel)
     c.n0 = c.noises[c.state]
     c.noise = toWatt(c.n0) * c.bandwidth
     c.interference = 0
+    nothing
 end
 
 function berawgn(c :: GilbertChannel, E_b)
@@ -54,10 +56,10 @@ function berawgn(c :: GilbertChannel, E_b)
 end
 
 function capacity(c :: GilbertChannel, power, pos)
-    d = sqrt(pos.x ^ 2 + pos.y ^ 2)
-    power *= (3e8 / (4 * pi * d * c.freq)) .^ 2
-    # Do not use Shannon capacity, since we're using QPSK
+    # Do not use Shannon capacity, since we're using QPSK with a fixed bandwidth
     # and it's suboptimal
+    # d = sqrt(pos.x ^ 2 + pos.y ^ 2)
+    # power *= (3e8 / (4 * pi * d * c.freq)) .^ 2
     # c.bandwidth * log2(1 + power / c.noise)
     # Assuming we're using a fixed bitrate
     Params.bitrate

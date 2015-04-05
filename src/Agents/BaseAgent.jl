@@ -8,7 +8,7 @@ using Traffic.Simple
 export AgentState, Environment, Agent, Result, Success, Collision, BufOverflow, LostInChannel,
        Action, Transmit, Sense, Idle, move, fillbuffer, idle, act_then_idle, sense, feedback,
        switch!, transmit!, Status, Initialized, Switched, Sensed, Transmitted, initial_action,
-       act, switch, Switch, EndTransmission, initcoordinator, cooperate
+       act, switch, Switch, EndTransmission, initcoordinator, cooperate, detect_traffic
 
 type Environment
     channels :: Vector{GilbertChannel}
@@ -51,6 +51,8 @@ type AgentState
     E_sense :: Float64
     E_slot :: Float64
     walk :: Function
+    pd :: Float64 # Probability of detection
+    pf :: Float64 # Probability of false alarm
     B_empty :: Int16 # empty buffer slots
     B_max :: Int16
     buf_overflow :: Bool
@@ -70,6 +72,9 @@ type AgentState
         a.E_sense = 0
         a.E_idle = 0
         a.walk = randomwalk(a.speed, int(10 / Params.t_slot))
+        # distribute pd-pf pairs using round robin
+        a.pd = Params.pd[i % end + 1]
+        a.pf = Params.pf[i % end + 1]
         a.B_max = Params.B
         a.B_empty = Params.B
         a.buf_overflow = false
@@ -172,6 +177,13 @@ function sense(a :: Agent, env :: Environment, detect_traffic :: Function)
     Sense(s.chan, s.id)
 end
 
+function detect_traffic(s :: AgentState, t :: SimpleTraffic, t_remaining :: Float64)
+    # if channel is occupied ofr less than half of sensing time
+    # we can't sense the traffic, so use pf (actually this logic should be revised)
+    sensing = t.occupancy < (Params.t_slot - t_remaining - 0.5 * Params.t_sense)
+    rand() < (sensing ? pd : pf)
+end
+
 function feedback(s :: AgentState, res :: Result, idle :: Bool = false, n_pkt :: Int = 0)
     if idle || res == BufOverflow
         return 
@@ -228,8 +240,15 @@ function act(a :: Agent)
     error("Not implemented")
 end
 
-initcoordinator{AgentT <: Agent}(:: Type{AgentT}, P :: ParamT) = Nothing()
+function detect_traffic(s :: AgentState, t :: SimpleTraffic, t_remaining :: Float64)
+    # if channel is occupied ofr less than half of sensing time
+    # we can't sense the traffic, so use pf (actually this logic should be revised)
+    sensing = t.occupancy < (Params.t_slot - t_remaining - 0.5 * Params.t_sense)
+    rand() < (sensing ? s.pd : s.pf)
+end
 
-cooperate{AgentT <: Agent}(agents :: Vector{AgentT}, P :: ParamT, coordinator, t) = Nothing()
+initcoordinator{AgentT <: Agent}(:: Type{AgentT}, P :: ParamT) = nothing
+
+cooperate{AgentT <: Agent}(agents :: Vector{AgentT}, P :: ParamT, coordinator, t) = nothing
 
 end

@@ -66,7 +66,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     expertness = zeros(n_agent)
     pkt_sent = zeros(Int, n_agent)
     rawtimeQ = 0
-    interference = zeros(n_channel, n_agent)
+    interference = zeros(n_agent, n_channel)
     release_time = zeros(n_channel)
     generated_packets = zeros(Int64, n_agent, n_runs)
     tried_packets = zeros(Int64, n_agent, n_runs)
@@ -153,9 +153,9 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                         traffics[i].occupancy = min(tt, traffics[i].occupancy)
                         # add interference
                         interfere!(channels[i], action.power, a.s.pos)
-                        interference[i, :] = max(interference[i, :], channels[i].interference)
+                        interference[:, i] = max(interference[:, i], channels[i].interference)
                         # keep current interference
-                        interference[i, agentid] = channels[i].interference
+                        interference[agentid, i] = channels[i].interference
                         # use previous occupier data to mark as collided
                         if traffics[i].occupier > -1 && traffics[i].occupier != agentid
                             if traffics[i].occupier > 0
@@ -184,7 +184,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                         interfere!(channels[action.chan], - action.power, a.s.pos)
                         tmp = channels[action.chan].interference
                         # change channel interference for us, then bring it back
-                        channels[action.chan].interference = interference[action.chan, agentid] - (prev_interference - tmp)
+                        channels[action.chan].interference = interference[agentid, action.chan] - (prev_interference - tmp)
                         # if no PU collision
                         if ! traffics[i].traffic
                             # Resolve transmission result
@@ -221,12 +221,12 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
             end
 
             @simd for i=1:n_agent
-                @inbounds a = agents[i]
-                @inbounds energies[i, t] = a.s.E_slot
-                @inbounds en_idle[i, t] += a.s.E_idle
-                @inbounds en_sense[i, t] += a.s.E_sense
-                @inbounds en_tx[i, t] += a.s.E_tx
-                @inbounds en_sw[i, t] += a.s.E_sw
+                @inbounds s = agents[i].s
+                @inbounds energies[i, t] = s.E_slot
+                @inbounds en_idle[i, t] += s.E_idle
+                @inbounds en_sense[i, t] += s.E_sense
+                @inbounds en_tx[i, t] += s.E_tx
+                @inbounds en_sw[i, t] += s.E_sw
             end
 
             for i=1:n_agent

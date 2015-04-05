@@ -10,7 +10,7 @@ function toWatt(P_dBm)
     10 .^ ((P_dBm - 30) ./ 10)
 end
 
-function logsumexp(v)
+function logsumexp{T}(v :: Vector{T})
     vmax = maximum(v)
     vmax + log(sum(exp(v - vmax)))
 end
