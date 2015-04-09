@@ -2,3 +2,7 @@
 *.sublime-project
 src/data
 data
+src/scratchpad
+*~
+*.png
+*.svg
