@@ -14,7 +14,7 @@ const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(300 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(100 / t_slot)) # convert seconds to time slots
 # number of channels
 const n_channel = int8(5)
 # radius of initial map
@@ -55,7 +55,7 @@ const bitrate = 3.75e6 # 1 Mbps
 const chan_trans_prob = [0.8 0.2; 0.8 0.2]'
 # channel noises for each channel type (type 1, type 2 etc)
 const P_sig = todBm(P_tx/chan_bw) # signal power density in dBm
-const noise = todBm(P_tx * (3e8 / (4 * pi * r_init * base_freq)) .^ 2 / bitrate) + [-9 0; -10 -8.5]
+const noise = todBm(P_tx * (3e8 / (4 * pi * r_init * base_freq)) .^ 2 / bitrate) + [-5 0; -6 -4.5]
 
 #traffic parameters
 const traffic_trans_prob =  [0.7 0.3; 0.9 0.1]'
@@ -71,9 +71,13 @@ const trustQ = 0.1
 # # of dimensions for SVD approximation
 const d_svd = 7
 
+# Capability levels
+const cap_levels = 2
 # detection and false alarm probabilities for diferent agent types
 const pd = [0.90, 0.96]
 const pf = [0.10, 0.04]
+# Location accuracy for different agent types
+const eps_accuracy = [50 1] .^ 2
 
 export ParamT, genparams
 
@@ -94,8 +98,8 @@ function genparams()
     params = Array(ParamT,0)
     i = 1
     for n_good_channel in int8([1, 3, 5])
-        for n_agent in int8([1, 2, 4, 7])
-            for pkt_max in [8, 10]
+        for n_agent in int8([2, 4, 7])
+            for pkt_max in [8]
                 for buf_levels in [6], beta_idle in [0.5, 1, 8, 20]
                     for sharingperiod = [500, 1000, 2000]
                         prefix = @sprintf("%d-%d-%d-%d-%d-%d-%d-%f-%d", n_runs, t_total, n_agent, n_channel, n_good_channel, buf_levels, pkt_max, beta_idle, sharingperiod)
