@@ -4,6 +4,7 @@ using Movement
 using Params
 using Channel.Gilbert
 using Traffic.Simple
+using Distributions
 
 export AgentState, Environment, Agent, Result, Success, Collision, BufOverflow, LostInChannel,
        Action, Transmit, Sense, Idle, move, fillbuffer, idle, act_then_idle, sense, feedback,
@@ -53,6 +54,8 @@ type AgentState
     walk :: Function
     pd :: Float64 # Probability of detection
     pf :: Float64 # Probability of false alarm
+    cap_level :: Int # capability level
+    location_error :: ZeroMeanIsoNormal # Location accuracy distribution
     B_empty :: Int16 # empty buffer slots
     B_max :: Int16
     buf_overflow :: Bool
@@ -72,9 +75,11 @@ type AgentState
         a.E_sense = 0
         a.E_idle = 0
         a.walk = randomwalk(a.speed, int(10 / Params.t_slot))
+        a.cap_level = i % Params.cap_levels + 1
         # distribute pd-pf pairs using round robin
-        a.pd = Params.pd[i % end + 1]
-        a.pf = Params.pf[i % end + 1]
+        a.pd = Params.pd[a.cap_level]
+        a.pf = Params.pf[a.cap_level]
+        a.location_error = MvNormal(2, Params.eps_accuracy[a.cap_level])
         a.B_max = Params.B
         a.B_empty = Params.B
         a.buf_overflow = false

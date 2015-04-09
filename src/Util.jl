@@ -1,6 +1,6 @@
 module Util
 
-export todBm, toWatt, logsumexp
+export todBm, toWatt, logsumexp, logistic
 
 function todBm(P_watt)
     10 .* log10(P_watt) + 30
@@ -14,5 +14,19 @@ function logsumexp{T}(v :: Vector{T})
     vmax = maximum(v)
     vmax + log(sum(exp(v - vmax)))
 end
+
+#=
+the logistic function where
+  L is the maximum value,
+  k is steepness of the curve,
+  x0 is the midpoint
+=#
+logistic(x, k=1, L=1, x0=0) = L ./ (1 + exp(-k * (x - x0)))
+
+# unit step function, returning int
+ustepi(x) = int(x .> 0)
+
+# unit step function, returning float
+ustep(x) = float(x .> 0)
 
 end

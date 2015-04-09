@@ -1,13 +1,14 @@
+module ContextAware
 
-using .BaseAgent
+using Agents.BaseAgent
 using Params
 using Traffic.Simple
 using Channel.Gilbert
 using Util
 
-export CooperativeQ
+export ContextQ
 
-type CooperativeQ <: Agent
+type ContextQ <: Agent
     s :: AgentState
     Q :: Array{Float64, 3}
     visit :: Array{Float64, 3}
@@ -23,20 +24,20 @@ end
 
 const n_p_levels = length(Params.P_levels)
 const idle_action = Params.n_channel * n_p_levels + 1
-const beta_overflow = 1000
+const beta_overflow = 100
 const beta_md = 1 # misdetection punishment coefficient
 const beta_loss = 2 # punishment for data loss in channel
 const epsilon = 0.05 # exploration probability
 const discount = 0.3 # discount factor, gamma
 
-function CooperativeQ(i, P)
+function ContextQ(i, P)
     Q = rand(int(Params.n_channel), P.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
     visit = zeros(Params.n_channel, P.buf_levels + 1, idle_action)
-    CooperativeQ(AgentState(i, P), Q, visit, 0, (0, 0), 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle)
+    ContextQ(AgentState(i, P), Q, visit, 0, (0, 0), 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle)
 end
 
-function policy!(a :: CooperativeQ)
+function policy!(a :: ContextQ)
     # check whether we have packets first
     if rand() < epsilon
         a.a = rand(1:idle_action)
@@ -46,7 +47,7 @@ function policy!(a :: CooperativeQ)
     nothing
 end
 
-function BaseAgent.act(a :: CooperativeQ, env, t)
+function BaseAgent.act(a :: ContextQ, env, t)
     if a.status == Initialized
         if a.s.B_max - a.s.B_empty == 0
             a.a = -1
@@ -83,11 +84,11 @@ function BaseAgent.act(a :: CooperativeQ, env, t)
     end
 end
 
-function alpha(a :: CooperativeQ)
+function alpha(a :: ContextQ)
     return 0.2 + 0.8 / (1 + a.visit[a.state[1], a.state[2], a.a])
 end
 
-function BaseAgent.feedback(a :: CooperativeQ, res :: Result, idle :: Bool = false, n_pkt :: Int = 0)
+function BaseAgent.feedback(a :: ContextQ, res :: Result, idle :: Bool = false, n_pkt :: Int = 0)
     feedback(a.s, res, idle, n_pkt)
     # if we didn't take any action that's worth learning, return immediately
     if a.a == -1
@@ -112,7 +113,7 @@ function BaseAgent.feedback(a :: CooperativeQ, res :: Result, idle :: Bool = fal
     a.Q[a.state[1], a.state[2], a.a] += alpha(a) * (r + discount * max_Q_next - Q_now)
     # Update expertness
     if r > 0
-        a.expertness += r # sum of reinforcements for now
+        a.expertness += r # sum of positive reinforcements for now
     end
     nothing
 end
@@ -128,11 +129,28 @@ type Coordinator
     end
 end
 
-function BaseAgent.initcoordinator(:: Type{CooperativeQ}, P :: ParamT)
+function BaseAgent.initcoordinator(:: Type{ContextQ}, P :: ParamT)
     return Coordinator(P)
 end
 
-function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordinator :: Coordinator, t)
+function expertweights(expertness, agents, i)
+    #expertness -= min(expertness)
+    # convert weights to values in [0, 1]
+    distances = [norm([a.s.x, a.s.y] + rand(a.s.location_error)) for a in agents]
+    distances = abs(distances - distances[i]) + 5 # +5 part is for accuracy
+    expertness ./= distances .^ 0.4
+    weights = logistic(expertness, mean(expertness), 1, expertness[i])
+    # introduce distances into weights
+    #temp = weights[i]
+    #weights[i] = 0
+    # weights[expertness .<= expertness[i]] = 0
+    # make weights one-sum
+    weights = weights ./ sum(weigths)
+    # weights .*= Params.trustQ
+    # weights[i] = 1 - Params.trustQ
+end
+
+function BaseAgent.cooperate(agents :: Vector{ContextQ}, P :: ParamT, coordinator :: Coordinator, t)
     const n_agent = int(P.n_agent)
     const sharingperiod = P.sharingperiod
     # size of US + size of Vt, used for data sharing time and energy computation
@@ -177,28 +195,21 @@ function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordi
                 if tt - (i+n_agent-1) * timeQ == timeQ - 1
                     #fill!(agents[i].Q, 0)
                     # use up-to-date Q function on CR's side
-                    weight = 1 - Params.trustQ
-                    agents[i].Q *= weight #* reshape(Q[j,:,:,:], size(agents[i].Q))
                     # learning from experts (LE)
                     # choose some experts randomly
                     experts = zeros(Bool, n_agent)
                     for e in shuffle!([[x for x=1:i-1],[x for x=i+1:n_agent]])[1:fld(n_agent, 2)]
                         experts[e] = true
                     end
+                    weights = expertweights(expertness, agents, i)
+                    agents[i].Q *= weights[i]
                     for j=1:n_agent
-                        if i == j
-                            continue
-                        elseif !experts[j]
+                        if i == j || weights[j] == 0 # || !experts[j]
                             continue
                         else
-                            if expertness[j] > expertness[i]
-                                weight = Params.trustQ * (expertness[j] - expertness[i])
-                                # normalize
-                                weight ./= sum((expertness - expertness[i]) .* (expertness .> expertness[i]))
-                                us = slice(US, (j, 1:size(US)[2], 1:size(US)[3]))
-                                vt = slice(Vt, (j, 1:size(Vt)[2], 1:size(Vt)[3]))
-                                agents[i].Q += weight * reshape(us * vt, size(agents[i].Q))
-                            end
+                            us = slice(US, (j, 1:size(US)[2], 1:size(US)[3]))
+                            vt = slice(Vt, (j, 1:size(Vt)[2], 1:size(Vt)[3]))
+                            agents[i].Q += weights[j] * reshape(us * vt, size(agents[i].Q))
                         end
                     end
                     agents[i].expertness = 0 # *= 1 - Params.trustQ
@@ -206,4 +217,6 @@ function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordi
             end
         end
     end
+end
+
 end
