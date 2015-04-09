@@ -9,6 +9,7 @@ end
 using Params
 using Agents.BaseAgent
 using Agents
+using Agents.ContextAware
 using Traffic.Simple
 using Channel.Gilbert
 using HDF5
@@ -34,7 +35,7 @@ if !isinteractive()
     println("DONE!")
 end
 
-const agent_types = [OptHighestSNR, CooperativeQ, RandomChannel, IndividualQ]
+const agent_types = [OptHighestSNR, CooperativeQ, RandomChannel, ContextQ]
 
 # generate ith channel
 function genchan(i, P)
@@ -305,6 +306,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
         println("Efficiency: ", sum(avg_bits)/sum(avg_energies))
         if !isinteractive()
             plot_ee(avg_energies, avg_bits, string(AgentT), at_no)
+            plot_buf(buf_levels, string(AgentT), at_no)
         end
 
         if Params.debug
@@ -319,7 +321,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     end
     avg_buf_levels = mean(buf_levels)
     avg_buf_overflows = mean(buf_overflow)
-    #@save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets init_distances final_distances
+    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets init_distances final_distances
     #@save "trajectories.jld" trajectories
 end
 
