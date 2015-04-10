@@ -61,11 +61,9 @@ type AgentState
     buf_overflow :: Bool
     id :: Int8
     chan :: Int8 # current channel
-    function AgentState(i :: Int8, P :: ParamT)
+    function AgentState(i :: Int8, P :: ParamT, pos :: Point{Float64})
         a = new()
-        r = sqrt(rand()) * Params.r_init
-        theta = rand()*2*pi
-        a.pos = Point(r * cos(theta), r * sin(theta))
+        a.pos = pos
         a.t_remaining = Params.t_slot
         a.speed = i < P.n_stationary_agent ? 30. / 3.6 : 0
         a.n_pkt_slot = 0
@@ -75,7 +73,7 @@ type AgentState
         a.E_sense = 0
         a.E_idle = 0
         a.walk = randomwalk(a.speed, int(10 / Params.t_slot))
-        a.cap_level = i % Params.cap_levels + 1
+        a.cap_level = P.caplevels[i]
         # distribute pd-pf pairs using round robin
         a.pd = Params.pd[a.cap_level]
         a.pf = Params.pf[a.cap_level]
@@ -130,7 +128,7 @@ end
 
 function fillbuffer(a :: Agent, P :: ParamT)
     s :: AgentState = a.s
-    pkgs = rand(Params.pkt_min:(P.pkt_max + 1))
+    pkgs = rand(Params.pkt_min:P.pkt_max)
     if pkgs > s.B_empty
         s.buf_overflow = true
         feedback(a, BufOverflow)

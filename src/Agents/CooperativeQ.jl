@@ -29,11 +29,11 @@ const beta_loss = 2 # punishment for data loss in channel
 const epsilon = 0.05 # exploration probability
 const discount = 0.3 # discount factor, gamma
 
-function CooperativeQ(i, P)
+function CooperativeQ(i, P, pos)
     Q = rand(int(Params.n_channel), P.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
     visit = zeros(Params.n_channel, P.buf_levels + 1, idle_action)
-    CooperativeQ(AgentState(i, P), Q, visit, 0, (0, 0), 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle)
+    CooperativeQ(AgentState(i, P, pos), Q, visit, 0, (0, 0), 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle)
 end
 
 function policy!(a :: CooperativeQ)

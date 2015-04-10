@@ -35,6 +35,10 @@ function initplots()
             title="Buffer Occupancy (501 Pt Average)",
             xlabel="Time (time slots)",
             ylabel="Buffer Occupancy (b)")
+    p_ee.l = {}
+    p_ee_conv.l = {}
+    p_th.l = {}
+    p_buf.l = {}
 end
 
 function plot_ee(energies, bits, agent, i)
@@ -56,7 +60,7 @@ end
 
 function plot_buf(buf_levels, agent, i)
     # start from 100 in total EE plot to see the differences more easily
-    buf = Curve(500:t_total, conv(vec(sum(buf_levels, 1)), fill(1./501, 501))[500:end-500], color=colors[i])
+    buf = Curve(500:t_total, conv(vec(mean(buf_levels, 1)) .* Params.pkt_size, fill(1./501, 501))[500:end-500], color=colors[i])
     setattr(buf, "label", agent)
     add(p_buf.p, buf)
     push!(p_buf.l, buf)

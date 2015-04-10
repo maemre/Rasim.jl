@@ -14,11 +14,11 @@ const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(100 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(600 / t_slot)) # convert seconds to time slots
 # number of channels
 const n_channel = int8(5)
 # radius of initial map
-const r_init = 5000
+const r_init = 1000
 
 # Buffer parameters
 
@@ -71,8 +71,6 @@ const trustQ = 0.1
 # # of dimensions for SVD approximation
 const d_svd = 7
 
-# Capability levels
-const cap_levels = 2
 # detection and false alarm probabilities for diferent agent types
 const pd = [0.90, 0.96]
 const pf = [0.10, 0.04]
@@ -91,23 +89,33 @@ type ParamT
     prefix :: ASCIIString
     n_agent :: Int8
     n_good_channel :: Int8
+    caplevels :: Vector{Int}
 end
 
+function gencaplevels(n_agent, k, n)
+    @assert 0 <= k <= n
+    caplevels = ones(Int, n_agent)
+    indexes = [1:n_agent] .% n
+    indexes[indexes .== 0] = n
+    caplevels[indexes .<= k] += 1
+    caplevels
+end
 
 function genparams()
     params = Array(ParamT,0)
     i = 1
-    for n_good_channel in int8([1, 3, 5])
-        for n_agent in int8([2, 4, 7])
-            for pkt_max in [8]
-                for buf_levels in [6], beta_idle in [0.5, 1, 8, 20]
-                    for sharingperiod = [500, 1000, 2000]
-                        prefix = @sprintf("%d-%d-%d-%d-%d-%d-%d-%f-%d", n_runs, t_total, n_agent, n_channel, n_good_channel, buf_levels, pkt_max, beta_idle, sharingperiod)
-                        push!(params, ParamT(beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel))
-                        i += 1
-                    end
-                end
-            end
+    n_good_channel = int8(3)
+    buf_levels = 10
+    beta_idle = 2
+    sharingperiod = 1000
+    for density in [(4, 8), (7, 10)]
+        n_agent = int8(density[1])
+        pkt_max = int8(density[2])
+        for goodratio in [(2, 7), (1, 2), (3, 4)]
+            caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
+            prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2])
+            push!(params, ParamT(beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels))
+            i += 1
         end
     end
     params

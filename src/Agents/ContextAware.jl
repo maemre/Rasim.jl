@@ -28,13 +28,13 @@ const beta_overflow = 100
 const beta_md = 1 # misdetection punishment coefficient
 const beta_loss = 2 # punishment for data loss in channel
 const epsilon = 0.05 # exploration probability
-const discount = 0.3 # discount factor, gamma
+const discount = 0.4 # discount factor, gamma
 
-function ContextQ(i, P)
+function ContextQ(i, P, pos)
     Q = rand(int(Params.n_channel), P.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
     visit = zeros(Params.n_channel, P.buf_levels + 1, idle_action)
-    ContextQ(AgentState(i, P), Q, visit, 0, (0, 0), 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle)
+    ContextQ(AgentState(i, P, pos), Q, visit, 0, (0, 0), 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle)
 end
 
 function policy!(a :: ContextQ)
@@ -138,7 +138,7 @@ function expertweights(expertness, agents, i)
     # convert weights to values in [0, 1]
     distances = [norm([a.s.x, a.s.y] + rand(a.s.location_error)) for a in agents]
     distances = abs(distances - distances[i]) + 5 # +5 part is for accuracy
-    expertness ./= distances .^ 0.4
+    expertness ./= sqrt(distances) # .^ 0.4
     weights = logistic(expertness, mean(expertness), 1, expertness[i])
     # introduce distances into weights
     #temp = weights[i]

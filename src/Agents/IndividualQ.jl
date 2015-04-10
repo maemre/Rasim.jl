@@ -20,11 +20,11 @@ type IndividualQ <: Agent
     beta_idle :: Float64
 end
 
-function IndividualQ(i, P)
+function IndividualQ(i, P, pos)
     Q = rand(int(Params.n_channel), P.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
     visit = zeros(Params.n_channel, P.buf_levels + 1, idle_action)
-    IndividualQ(AgentState(i, P), Q, visit, 0, (0, 0), 0, 0, Initialized,  div(Params.B + 1, P.buf_levels), P.beta_idle)
+    IndividualQ(AgentState(i, P, pos), Q, visit, 0, (0, 0), 0, 0, Initialized,  div(Params.B + 1, P.buf_levels), P.beta_idle)
 end
 
 function policy!(a :: IndividualQ)

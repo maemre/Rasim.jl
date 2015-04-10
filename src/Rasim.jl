@@ -43,7 +43,7 @@ function genchan(i, P)
     GilbertChannel(base_freq + chan_bw * i, noise[goodness[i], :], chan_trans_prob)
 end
 
-function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: ParamT)
+function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: ParamT, init_positions :: Array{Point{Float64}, 2})
     const output_dir = joinpath("data/", P.prefix)
     const n_agent = int(P.n_agent)
     const sharingperiod = P.sharingperiod
@@ -84,7 +84,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     println("Agent type: ", AgentT, " - ", P.iteration)
 
     for n_run=1:n_runs
-        agents = [AgentT(i, P) for i::Int8=1:n_agent]
+        agents = [AgentT(i, P, init_positions[n_run, i]) for i::Int8=1:n_agent]
         energies = zeros(n_agent, t_total)
         bits = zeros(n_agent, t_total)
         if verbose
@@ -306,7 +306,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
         println("Efficiency: ", sum(avg_bits)/sum(avg_energies))
         if !isinteractive()
             plot_ee(avg_energies, avg_bits, string(AgentT), at_no)
-            plot_buf(buf_levels, string(AgentT), at_no)
+            plot_buf(reshape(mean(buf_levels, 1), size(buf_levels)[2:end]), string(AgentT), at_no)
         end
 
         if Params.debug
@@ -321,7 +321,8 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     end
     avg_buf_levels = mean(buf_levels)
     avg_buf_overflows = mean(buf_overflow)
-    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets init_distances final_distances
+    @save joinpath(output_dir, string(AgentT, ".jld")) avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets
+    @save joinpath(output_dir, string(AgentT, "-extra.jld")) init_positions init_distances final_distances
     #@save "trajectories.jld" trajectories
 end
 
@@ -335,8 +336,17 @@ function run_whole_simulation(P :: ParamT)
     if verbose
         initplots()
     end
+
+    # Generate same initial positions among all agent types
+    positions = Array(Point{Float64}, Params.n_runs, P.n_agent)
+    for i=1:Params.n_runs, j=1:P.n_agent
+        r = sqrt(rand()) * Params.r_init
+        theta = rand()*2*pi
+        positions[i, j] = Point(r * cos(theta), r * sin(theta))
+    end
+
     for i=1:endof(agent_types)
-        run_simulation(agent_types[i], i, P)
+        run_simulation(agent_types[i], i, P, positions)
     end
     if verbose
         displayplots()
