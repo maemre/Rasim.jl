@@ -81,7 +81,7 @@ function BaseAgent.act(a :: ContextQ, env, t)
 end
 
 function alpha(a :: ContextQ)
-    return 0.2 + 0.8 / (1 + a.visit[a.state[1], a.state[2], a.a])
+    return 0.4 + 0.6 / (1 + a.visit[a.state[1], a.state[2], a.a])
 end
 
 function BaseAgent.feedback(a :: ContextQ, res :: Result, idle :: Bool = false, n_pkt :: Int = 0)
@@ -206,6 +206,7 @@ function BaseAgent.cooperate(agents :: Vector{ContextQ}, P :: ParamT, coordinato
                             us = slice(US, (j, 1:size(US)[2], 1:size(US)[3]))
                             vt = slice(Vt, (j, 1:size(Vt)[2], 1:size(Vt)[3]))
                             agents[i].Q += weights[j] * reshape(us * vt, size(agents[i].Q))
+                            fill!(agents[i].visit, 0)
                         end
                     end
                     agents[i].expertness = 0 # *= 1 - Params.trustQ
