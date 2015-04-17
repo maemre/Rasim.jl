@@ -4,6 +4,7 @@ using Params
 using Traffic.Simple
 using Channel.Gilbert
 using Util
+using Params.QParams
 
 export IndividualQ
 

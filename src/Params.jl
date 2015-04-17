@@ -14,7 +14,7 @@ const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(600 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(100 / t_slot)) # convert seconds to time slots
 # number of channels
 const n_channel = int8(5)
 # radius of initial map
@@ -23,7 +23,7 @@ const r_init = 1000
 # Buffer parameters
 
 # number of buffer slots
-const B = int16(2560) # packets
+const B = int16(1024) # packets
 # Size of a buffer slot (also packet size)
 const pkt_size = 1024 # bits
 # buffer size in bits
@@ -62,6 +62,16 @@ const traffic_trans_prob =  [0.7 0.3; 0.9 0.1]'
 const traffic_probs = [0.3; 0.7]
 
 # Q learning parameters
+module QParams
+
+export beta_overflow, beta_md, beta_loss, epsilon, discount
+
+const beta_overflow = 100
+const beta_md = 1 # misdetection punishment coefficient
+const beta_loss = 2 # punishment for data loss in channel
+const epsilon = 0.05 # exploration probability
+const discount = 0.4 # discount factor, gamma
+end
 # saturation time of initial values
 const t_saturation = 1000
 # capacity of control channel, assuming SNR of channel is 7 dB

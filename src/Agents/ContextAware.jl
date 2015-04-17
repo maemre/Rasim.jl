@@ -5,6 +5,7 @@ using Params
 using Traffic.Simple
 using Channel.Gilbert
 using Util
+using Params.QParams
 
 export ContextQ
 
@@ -24,11 +25,6 @@ end
 
 const n_p_levels = length(Params.P_levels)
 const idle_action = Params.n_channel * n_p_levels + 1
-const beta_overflow = 100
-const beta_md = 1 # misdetection punishment coefficient
-const beta_loss = 2 # punishment for data loss in channel
-const epsilon = 0.05 # exploration probability
-const discount = 0.4 # discount factor, gamma
 
 function ContextQ(i, P, pos)
     Q = rand(int(Params.n_channel), P.buf_levels + 1, idle_action)
