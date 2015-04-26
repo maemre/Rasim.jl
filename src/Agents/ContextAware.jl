@@ -93,6 +93,9 @@ function BaseAgent.feedback(a :: ContextQ, res :: Result, idle :: Bool = false, 
     r :: Float64 = 0
     if idle
         r = - a.beta_idle * a.bitrate * Params.t_slot / a.s.E_slot
+        if res == BufOverflow # If we were idle and overflow occurred, get some extra punishment
+            r = r * Params.beta_overflow / a.beta_idle
+        end
     elseif res == Success
         K = 1 # a.P_tx ^ 2 * Params.t_slot / a.bitrate
         r = K * Params.pkt_size * n_pkt / a.s.E_slot
