@@ -23,7 +23,7 @@ const r_init = 1000
 # Buffer parameters
 
 # number of buffer slots
-const B = int16(1024) # packets
+const B = int16(512) # packets
 # Size of a buffer slot (also packet size)
 const pkt_size = 1024 # bits
 # buffer size in bits
