@@ -5,6 +5,7 @@ using Params
 using Channel.Gilbert
 using Traffic.Simple
 using Distributions
+using DataStructures: Queue, Deque, enqueue!, dequeue!, front, back
 
 export AgentState, Environment, Agent, Result, Success, Collision, BufOverflow, LostInChannel,
        Action, Transmit, Sense, Idle, move, fillbuffer, idle, act_then_idle, sense, feedback,
@@ -72,6 +73,7 @@ type AgentState
     id :: Int8
     chan :: Int8 # current channel
     energysaving :: EnergySavingMode
+    pktqueue :: Queue{Deque{Int}} # Creation time-slot of packets
     function AgentState(i :: Int8, P :: ParamT, pos :: Point{Float64})
         a = new()
         a.pos = pos
@@ -95,6 +97,7 @@ type AgentState
         a.id = i
         a.chan = rand(1:Params.n_channel)
         a.energysaving = i % 2 == 0 ? MaxThroughput : EnergySaving
+        a.pktqueue = Queue(Int)
         a
     end
 end
@@ -138,16 +141,20 @@ function move!(s :: AgentState, t :: Int64)
     s.pos += s.walk(t)
 end
 
-function fillbuffer(a :: Agent, P :: ParamT)
+function fillbuffer(a :: Agent, P :: ParamT, t :: Int64)
     s :: AgentState = a.s
     pkgs = rand(Params.pkt_min:P.pkt_max)
     if pkgs > s.B_empty
         s.buf_overflow = true
         feedback(a, BufOverflow)
+        pkgs = s.B_empty
         s.B_empty = 0
     else
         s.buf_overflow = false
         s.B_empty -= pkgs
+    end
+    for i = 1:pkgs
+        enqueue!(s.pktqueue, t)
     end
     nothing
 end
@@ -164,7 +171,7 @@ function idle(a :: Agent, t :: Float64 = -1.)
 end
 
 function initial_action(a :: Agent, env :: Environment, t :: Int64, P)
-    fillbuffer(a, P)
+    fillbuffer(a, P, t)
     move!(a.s, t)
     s :: AgentState = a.s
     s.n_pkt_slot = 0

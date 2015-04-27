@@ -181,8 +181,8 @@ function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordi
                     # learning from experts (LE)
                     # choose some experts randomly
                     experts = zeros(Bool, n_agent)
-                    for e in shuffle!([[x for x=1:i-1],[x for x=i+1:n_agent]])[1:fld(n_agent, 2)]
-                        experts[e] = true
+                    for expert in shuffle!([[x for x=1:i-1],[x for x=i+1:n_agent]])[1:fld(n_agent, 2)]
+                        experts[expert] = true
                     end
                     for j=1:n_agent
                         if i == j

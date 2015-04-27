@@ -109,8 +109,8 @@ function BaseAgent.feedback(a :: ContextQ, res :: Result, idle :: Bool = false, 
         r = - a.beta_idle * a.bitrate * Params.t_slot / a.s.E_slot
         if res == BufOverflow # If we were idle and overflow occurred, get some extra punishment
             r = r * Params.beta_overflow / a.beta_idle
-        elseif a.state.energysaving == EnergySaving
-            r *= 0.5 # Halve beta_idle in energy saving mode
+        elseif a.state.energysaving == MaxThroughput
+            r *= 2 # double beta_idle in max throughput mode
         end
     elseif res == Success
         K = 1 # a.P_tx ^ 2 * Params.t_slot / a.bitrate
@@ -211,11 +211,6 @@ function BaseAgent.cooperate(agents :: Vector{ContextQ}, P :: ParamT, coordinato
                     #fill!(agents[i].Q, 0)
                     # use up-to-date Q function on CR's side
                     # learning from experts (LE)
-                    # choose some experts randomly
-                    experts = zeros(Bool, n_agent)
-                    for e in shuffle!([[x for x=1:i-1],[x for x=i+1:n_agent]])[1:fld(n_agent, 2)]
-                        experts[e] = true
-                    end
                     weights = expertweights(expertness, agents, i)
                     agents[i].Q *= weights[i]
                     for j=1:n_agent

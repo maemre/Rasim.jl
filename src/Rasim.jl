@@ -20,7 +20,8 @@ if verbose
     using Plots
 end
 
-using Base.Collections
+using Base.Collections: heapify!, heappush!, heappop!
+using DataStructures: Queue, Deque, enqueue!, dequeue!, front, back, DefaultDict
 using Util
 
 type Event
@@ -74,6 +75,10 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     sent_packets = zeros(Int64, n_agent, n_runs)
     init_distances = zeros(Float64, n_agent)
     final_distances = zeros(Float64, n_agent)
+    latencyhist = Array(DefaultDict{Int, Int, Int}, n_agent, n_runs)
+    for i=1:n_agent, j=1:n_runs
+        latencyhist[i, j] = DefaultDict(Int, Int, 0)
+    end
 
     channels = [genchan(i, P) for i=1:n_channel]
     traffics = [SimpleTraffic() for i=1:n_channel]
@@ -189,7 +194,13 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                         # if no PU collision
                         if ! traffics[i].traffic
                             # Resolve transmission result
-                            pkt_sent[agentid] += transmission_successes(channels[action.chan], action.power, action.bitrate, a.s.pos.x, a.s.pos.y)
+                            n_success = transmission_successes(channels[action.chan], action.power, action.bitrate, a.s.pos.x, a.s.pos.y)
+                            # Compute latency figures
+                            for _ = 1:n_success
+                                latencyhist[agentid, n_run][t - dequeue!(a.s.pktqueue)] += 1
+                            end
+                            # compute transmission counts
+                            pkt_sent[agentid] += n_success
                         end
                         # bring interference back
                         channels[action.chan].interference = tmp
@@ -301,9 +312,17 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     en_sense /= n_runs
     en_tx /= n_runs
     en_sw /= n_runs
+    latencies = [sum([k*latencyhist[i, j][k] for k=keys(latencyhist[i, j])]) for i=1:n_agent, j=1:n_runs]
+    latencies ./= sent_packets
     if verbose
-        println("Throughput: ", sum(avg_bits))
-        println("Efficiency: ", sum(avg_bits)/sum(avg_energies))
+        println("Statistics (mean of agents and runs)")
+        println("Throughput:\t", mean(avg_bits))
+        println("Efficiency:\t", sum(avg_bits)/sum(avg_energies))
+        println("Latency:\t", mean(latencies))
+        println("Buffer Overflows:\t", mean(sum(buf_overflow, 3)))
+        print("\nMin / Max Latency:\t")
+        print(minimum([minimum(keys(latencyhist[i, j])) for i=1:n_agent, j=1:n_runs]), "\t")
+        println(maximum([maximum(keys(latencyhist[i, j])) for i=1:n_agent, j=1:n_runs]), "\t")
         if !isinteractive()
             plot_ee(avg_energies, avg_bits, string(AgentT), at_no)
             plot_buf(reshape(mean(buf_levels, 1), size(buf_levels)[2:end]), string(AgentT), at_no)
@@ -322,8 +341,8 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     avg_buf_levels = mean(buf_levels)
     avg_buf_overflows = mean(buf_overflow)
     buf_matrix = reshape(mean(buf_levels, 1), size(buf_levels)[2:end])
-    @save joinpath(output_dir, string(AgentT, ".jld")) buf_matrix avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets
-    @save joinpath(output_dir, string(AgentT, "-extra.jld")) init_positions init_distances final_distances
+    @save joinpath(output_dir, string(AgentT, ".jld")) buf_matrix avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets latencies
+    @save joinpath(output_dir, string(AgentT, "-extra.jld")) init_positions init_distances final_distances latencyhist
     #@save "trajectories.jld" trajectories
 end
 
