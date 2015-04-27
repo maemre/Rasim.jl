@@ -10,7 +10,7 @@ const batch_run = false
 const verbose = true && !batch_run
 const debug = false
 # number of runs
-const n_runs = 10
+const n_runs = 20
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
@@ -79,13 +79,13 @@ const controlcapacity = 1e6 * log2(1 + 10 .^ 0.7)
 # trust to others' experiences
 const trustQ = 0.1
 # # of dimensions for SVD approximation
-const d_svd = 7
+const d_svd = 9
 
 # detection and false alarm probabilities for diferent agent types
 const pd = [0.90, 0.96]
 const pf = [0.10, 0.04]
 # Location accuracy for different agent types
-const eps_accuracy = [50 1] .^ 2
+const eps_accuracy = [50 1]
 
 export ParamT, genparams
 
