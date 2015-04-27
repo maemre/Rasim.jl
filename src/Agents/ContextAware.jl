@@ -9,41 +9,51 @@ using Params.QParams
 
 export ContextQ
 
+# Q-Learning state, may contains some fields in
+# AgentState
+type StateT
+    chan :: Int
+    buflevel :: Int
+    energysaving :: EnergySavingMode
+end
+
 type ContextQ <: Agent
     s :: AgentState
-    Q :: Array{Float64, 3}
-    visit :: Array{Float64, 3}
+    Q :: Array{Float64, 4}
+    visit :: Array{Float64, 4}
     a :: Int
-    state :: (Int, Int)
     P_tx :: Float64
     bitrate :: Float64
     status :: Status
     expertness :: Float64
     buf_interval :: Int
     beta_idle :: Float64
+    state :: StateT
 end
 
 const n_p_levels = length(Params.P_levels)
 const idle_action = Params.n_channel * n_p_levels + 1
 
 function ContextQ(i, P, pos)
-    Q = rand(int(Params.n_channel), P.buf_levels + 1, idle_action)
+    Q = rand(EnergySaving.n, int(Params.n_channel), P.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
-    visit = zeros(Params.n_channel, P.buf_levels + 1, idle_action)
-    ContextQ(AgentState(i, P, pos), Q, visit, 0, (0, 0), 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle)
+    visit = zeros(Int, EnergySaving.n, Params.n_channel, P.buf_levels + 1, idle_action)
+    agent = ContextQ(AgentState(i, P, pos), Q, visit, 0, 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle, StateT(0, 0, MaxThroughput))
+    agent.state.energysaving = agent.s.energysaving
+    agent
 end
 
 function policy!(a :: ContextQ)
-    # check whether we have packets first
     if rand() < epsilon
         a.a = rand(1:idle_action)
     else
-        a.a = indmax(a.Q[a.s.chan, div(a.s.B_empty, a.buf_interval) + 1, :])
+        a.a = indmax(a.Q[a.state.energysaving.n, a.s.chan, div(a.s.B_empty, a.buf_interval) + 1, :])
     end
     nothing
 end
 
 function BaseAgent.act(a :: ContextQ, env, t)
+    # check whether we have packets first
     if a.status == Initialized
         if a.s.B_max - a.s.B_empty == 0
             a.a = -1
@@ -51,8 +61,12 @@ function BaseAgent.act(a :: ContextQ, env, t)
         end
 
         policy!(a)
-        a.state = (a.s.chan, div(a.s.B_empty, a.buf_interval) + 1)
-        a.visit[a.s.chan, a.state[2], a.a] += 1
+        # infer state
+        a.state.chan = a.s.chan
+        a.state.buflevel = div(a.s.B_empty, a.buf_interval) + 1
+        a.state.energysaving = a.s.energysaving
+        # update state visit count
+        a.visit[a.state.energysaving.n, a.state.chan, a.state.buflevel, a.a] += 1
 
         if a.a == idle_action
             return idle(a)
@@ -81,7 +95,7 @@ function BaseAgent.act(a :: ContextQ, env, t)
 end
 
 function alpha(a :: ContextQ)
-    return 0.4 + 0.6 / (1 + a.visit[a.state[1], a.state[2], a.a])
+    return 0.4 + 0.6 / (1 + a.visit[a.state.energysaving.n, a.state.chan, a.state.buflevel, a.a])
 end
 
 function BaseAgent.feedback(a :: ContextQ, res :: Result, idle :: Bool = false, n_pkt :: Int = 0)
@@ -95,6 +109,8 @@ function BaseAgent.feedback(a :: ContextQ, res :: Result, idle :: Bool = false, 
         r = - a.beta_idle * a.bitrate * Params.t_slot / a.s.E_slot
         if res == BufOverflow # If we were idle and overflow occurred, get some extra punishment
             r = r * Params.beta_overflow / a.beta_idle
+        elseif a.state.energysaving == EnergySaving
+            r *= 0.5 # Halve beta_idle in energy saving mode
         end
     elseif res == Success
         K = 1 # a.P_tx ^ 2 * Params.t_slot / a.bitrate
@@ -107,9 +123,9 @@ function BaseAgent.feedback(a :: ContextQ, res :: Result, idle :: Bool = false, 
         return nothing
     end
     # UPDATE Q
-    max_Q_next = maximum(a.Q[a.s.chan, floor(a.s.B_empty / a.buf_interval) + 1])
-    Q_now = a.Q[a.state[1], a.state[2], a.a]
-    a.Q[a.state[1], a.state[2], a.a] += alpha(a) * (r + discount * max_Q_next - Q_now)
+    max_Q_next = maximum(a.Q[a.state.energysaving.n, a.s.chan, floor(a.s.B_empty / a.buf_interval) + 1])
+    Q_now = a.Q[a.state.energysaving.n, a.state.chan, a.state.buflevel, a.a]
+    a.Q[a.state.energysaving.n, a.state.chan, a.state.buflevel, a.a] += alpha(a) * (r + discount * max_Q_next - Q_now)
     # Update expertness
     if r > 0
         a.expertness += r # sum of positive reinforcements for now
@@ -153,13 +169,13 @@ function BaseAgent.cooperate(agents :: Vector{ContextQ}, P :: ParamT, coordinato
     const n_agent = int(P.n_agent)
     const sharingperiod = P.sharingperiod
     # size of US + size of Vt, used for data sharing time and energy computation
-    const sizeQ = Params.d_svd * 64 * (n_channel * (P.buf_levels + 1) + (n_channel * length(P_levels) + 1))
+    const sizeQ = Params.d_svd * 64 * (EnergySaving.n * n_channel * (P.buf_levels + 1) + (n_channel * length(P_levels) + 1))
     # time slots required for an agent to send/receive Q matrix by sending/receiving US & Vt
     const timeQ = int(ceil(sizeQ ./ Params.controlcapacity ./ t_slot))
     # time required for an agent to send/receive Q matrix by sending/receiving US & Vt
     const rawtimeQ0 = sizeQ ./ Params.controlcapacity ./ t_slot
-    # Shape of the Q matrix
-    const shapeQ = (int(Params.n_channel) * (P.buf_levels + 1), Params.n_channel * length(Params.P_levels) + 1)
+    # Shape of the Q matrix (Shape is S x A where S and A are discrete enumerated sets)
+    const shapeQ = (EnergySaving.n * int(Params.n_channel) * (P.buf_levels + 1), Params.n_channel * length(Params.P_levels) + 1)
     if n_agent > 1
         US = coordinator.US
         Vt = coordinator.Vt

@@ -39,6 +39,16 @@ const Switched = Status(1)
 const Sensed = Status(2)
 const Transmitted = Status(3)
 
+# Energy saving modes
+immutable EnergySavingMode
+    n :: Int
+end
+
+MaxThroughput = EnergySavingMode(1)
+EnergySaving = EnergySavingMode(2)
+
+export EnergySavingMode, EnergySaving, MaxThroughput
+
 # I align structures for smaller memory footprint (size matters!)
 type AgentState
     pos :: Point{Float64} # position
@@ -61,6 +71,7 @@ type AgentState
     buf_overflow :: Bool
     id :: Int8
     chan :: Int8 # current channel
+    energysaving :: EnergySavingMode
     function AgentState(i :: Int8, P :: ParamT, pos :: Point{Float64})
         a = new()
         a.pos = pos
@@ -83,6 +94,7 @@ type AgentState
         a.buf_overflow = false
         a.id = i
         a.chan = rand(1:Params.n_channel)
+        a.energysaving = i % 2 == 0 ? MaxThroughput : EnergySaving
         a
     end
 end

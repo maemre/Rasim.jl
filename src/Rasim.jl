@@ -35,7 +35,7 @@ if !isinteractive()
     println("DONE!")
 end
 
-const agent_types = [OptHighestSNR, CooperativeQ, RandomChannel, ContextQ]
+const agent_types = [ContextQ, OptHighestSNR, CooperativeQ, RandomChannel]
 
 # generate ith channel
 function genchan(i, P)
