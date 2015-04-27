@@ -1,4 +1,4 @@
-#!/usr/bin/env julia -p 4
+#!/usr/bin/env julia -p 3
 
 @everywhere using Params, Rasim
 
