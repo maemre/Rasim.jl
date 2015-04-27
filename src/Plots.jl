@@ -5,7 +5,7 @@ using Params
 
 export initplots, plot_ee, displayplots, plot_buf
 
-const colors = ["cyan"; "green"; "red"; "blue"; "magenta"; "yellow"; "black"]
+const colors = ["blue"; "cyan"; "green"; "red"; "magenta"; "yellow"; "black"]
 
 type PlotFig
     l :: Array{Any, 1}
