@@ -50,9 +50,9 @@ function getdata()
             #=d = {P.beta_idle P.sharingperiod P.pkt_max P.n_agent P.n_good_channel at mean(bits) mean(energy) generated_packets tried_packets sent_packets buf_levels buf_overflow vec(mean(energy, [1])) vec(mean(bits, [1])) P.prefix [1:30000]}
             push!(df, d)=#
             b=vec(mean(bits, [1]))
-            e=vec(mean(energy, [1]))
-            ee_ = b ./ e
-            dd = DataFrame(agent_type=[at for t=1:t_total], buf=vec(mean(read(file, "buf_matrix"), [1])), en=e, t=[1:t_total], bits=b, ee=ee_, cumee=cumsum(b) ./ cumsum(e), cumth=cumsum(b))
+            en=vec(mean(energy, [1]))
+            ee_ = b ./ en
+            dd = DataFrame(agent_type=fill(at, t_total), buf=vec(mean(read(file, "buf_matrix"), [1])), en=e, t=[1:t_total], bits=b, ee=ee_, cumee=cumsum(b) ./ cumsum(e), cumth=cumsum(b))
             append!(s, dd)
             close(file)
         end
@@ -102,7 +102,7 @@ function plot2(df)
             ee = d[:bits][i] / d[:en][i]
             cumee = cumsum(ee)
             cumth = cumsum(d[:bits][i])
-            append!(s, DataFrame(agent_type=[d[:agent_type][i] for t=1:30000], en=d[:en][i], t=d[:t][i], bits=d[:bits][i], ee=ee, cumee=cumee, cumth=cumth))
+            append!(s, DataFrame(agent_type=fill(d[:agent_type][i], 30000), en=d[:en][i], t=d[:t][i], bits=d[:bits][i], ee=ee, cumee=cumee, cumth=cumth))
         end
         prefix = d[:prefix]
         draw(PNG("plots/$prefix-ee-cumulative.png", 10inch, 8inch), plot(s, x="t", y="cumee", color="agent_type", Geom.line))

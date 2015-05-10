@@ -54,8 +54,8 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     const timeQ = int(ceil(sizeQ ./ Params.controlcapacity ./ t_slot))
     # time required for an agent to send/receive Q matrix
     const rawtimeQ0 = sizeQ ./ Params.controlcapacity ./ t_slot
-    avg_energies = zeros(n_agent, t_total)
-    avg_bits = zeros(n_agent, t_total)
+    avg_energies = zeros(Float64, n_agent, t_total)
+    avg_bits = zeros(Float64, n_agent, t_total)
     en_idle = zeros(n_agent, t_total)
     en_sense = zeros(n_agent, t_total)
     en_sw = zeros(n_agent, t_total)
@@ -79,6 +79,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     for i=1:n_agent, j=1:n_runs
         latencyhist[i, j] = DefaultDict(Int, Int, 0)
     end
+    energies = zeros(Float64, n_agent, t_total)
 
     channels = [genchan(i, P) for i=1:n_channel]
     traffics = [SimpleTraffic() for i=1:n_channel]
@@ -90,8 +91,8 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
 
     for n_run=1:n_runs
         agents = [AgentT(i, P, init_positions[n_run, i]) for i::Int8=1:n_agent]
-        energies = zeros(n_agent, t_total)
-        bits = zeros(n_agent, t_total)
+        fill!(energies, 0.0)
+        bits_transmitted = zeros(n_agent, t_total)
         if verbose
             @printf("Run %d of %d (agent), %d of %d (total)\n", n_run, n_runs, n_run + (at_no - 1) * n_runs, length(agent_types) * n_runs)
         end
@@ -267,7 +268,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                             rates[2] += pkt_sent[i] / a.s.n_pkt_slot
                             rates[3] += (a.s.n_pkt_slot - pkt_sent[i]) / a.s.n_pkt_slot
                             # collect bit transmission statistics
-                            bits[i, t] = pkt_sent[i] * Params.pkt_size
+                            bits_transmitted[i, t] = pkt_sent[i] * Params.pkt_size
                         end
                     end
                 elseif isa(act, Transmit)
@@ -282,17 +283,17 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                     rates[2] += pkt_sent[i] / a.s.n_pkt_slot
                     rates[3] += (a.s.n_pkt_slot - pkt_sent[i]) / a.s.n_pkt_slot
                     # collect bit transmission statistics
-                    bits[i, t] = pkt_sent[i] * Params.pkt_size
+                    bits_transmitted[i, t] = pkt_sent[i] * Params.pkt_size
                 end
             end
         end
 
         avg_energies += energies
-        avg_bits += bits
+        avg_bits += bits_transmitted
 
         rates[5] /= t_total * n_channel / 100
 
-        if verbose
+        if verbose && false
             println("Collisions: ", rates[1])
             println("Successes: ", rates[2])
             println("Lost in Channel: ", rates[3])
@@ -306,12 +307,12 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
             final_distances[a.s.id] += (a.s.pos.x .^ 2 + a.s.pos.y .^ 2)
         end
     end
-    avg_energies /= n_runs
-    avg_bits /= n_runs
-    en_idle /= n_runs
-    en_sense /= n_runs
-    en_tx /= n_runs
-    en_sw /= n_runs
+    avg_energies /= float(n_runs)
+    avg_bits /= float(n_runs)
+    en_idle /= float(n_runs)
+    en_sense /= float(n_runs)
+    en_tx /= float(n_runs)
+    en_sw /= float(n_runs)
     latencies = [sum([k*latencyhist[i, j][k] for k=keys(latencyhist[i, j])]) for i=1:n_agent, j=1:n_runs]
     latencies ./= sent_packets
     if verbose
@@ -331,7 +332,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
         if Params.debug
             println("Energies")
             println(cumsum(sum(avg_energies, 1), 2))
-            println("Bits")
+            println("bits_transmitted")
             println(cumsum(sum(avg_bits, 1), 2))
             println("Efficiency")
             println(cumsum(sum(avg_energies, 1), 2) ./ cumsum(sum(avg_bits, 1), 2))

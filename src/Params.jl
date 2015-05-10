@@ -2,8 +2,8 @@ module Params
 
 using Util
 
-export t_slot, prefix, batch_run, verbose, n_runs, t_total, n_agent, n_stationary_agent, n_channel,
-       r_init, B, pkt_size, b_size, pkt_min, pkt_max, base_freq, chan_bw, chan_trans_prob, noise, P_levels
+export t_slot, batch_run, verbose, n_runs, t_total, n_channel,
+       r_init, B, pkt_size, b_size, pkt_min, base_freq, chan_bw, chan_trans_prob, noise, P_levels
 
 # Simulation parameters:
 const batch_run = false
