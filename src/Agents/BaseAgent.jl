@@ -46,7 +46,7 @@ immutable EnergySavingMode
 end
 
 MaxThroughput = EnergySavingMode(1)
-EnergySaving = EnergySavingMode(2)
+EnergySaving = EnergySavingMode(1)
 
 export EnergySavingMode, EnergySaving, MaxThroughput
 
