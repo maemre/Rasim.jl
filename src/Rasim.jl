@@ -340,9 +340,10 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
         end
     end
     avg_buf_levels = mean(buf_levels)
-    avg_buf_overflows = mean(buf_overflow)
-    buf_matrix = reshape(mean(buf_levels, 1), size(buf_levels)[2:end])
-    @save joinpath(output_dir, string(AgentT, ".jld")) buf_matrix avg_energies avg_bits avg_buf_levels avg_buf_overflows generated_packets tried_packets sent_packets latencies
+    buf_overflows = sum(buf_overflow)
+    buf_levels = reshape(mean(buf_levels, 1), size(buf_levels)[2:end])
+    latencyhist = convert(Matrix{Dict{Int, Int}}, latencyhist)
+    @save joinpath(output_dir, string(AgentT, ".jld")) buf_levels avg_energies avg_bits avg_buf_levels buf_overflows generated_packets tried_packets sent_packets latencies
     @save joinpath(output_dir, string(AgentT, "-extra.jld")) init_positions init_distances final_distances latencyhist
     #@save "trajectories.jld" trajectories
 end

@@ -4,3 +4,5 @@ Winston
 DataFrames
 Gadfly
 HDF5
+DataStructures
+Blosc

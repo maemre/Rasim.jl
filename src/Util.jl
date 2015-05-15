@@ -1,5 +1,7 @@
 module Util
 
+using DataStructures: DefaultDict
+
 export todBm, toWatt, logsumexp, logistic
 
 function todBm(P_watt)
@@ -13,6 +15,15 @@ end
 function logsumexp{T}(v :: Vector{T})
     vmax = maximum(v)
     vmax + log(sum(exp(v - vmax)))
+end
+
+# Helper function for dumping DefaultDicts
+function Base.convert{K, V, D}(T ::Type{Dict{K, V}}, dd :: DefaultDict{K, V, D})
+    d = T()
+    for (k, v) in dd
+        d[k] = v
+    end
+    d
 end
 
 #=

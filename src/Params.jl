@@ -90,6 +90,7 @@ const eps_accuracy = [50 1]
 export ParamT, genparams
 
 type ParamT
+    goodratio :: (Int, Int)
     beta_idle :: Float64
     sharingperiod :: Int
     buf_levels :: Int
@@ -116,16 +117,17 @@ function genparams()
     i = 1
     n_good_channel = int8(3)
     buf_levels = 10
-    beta_idle = 2
     sharingperiod = 1000
-    for density in [(4, 8), (7, 10)]
-        n_agent = int8(density[1])
-        pkt_max = int8(density[2])
-        for goodratio in [(2, 7), (1, 2), (3, 4)]
-            caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
-            prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2])
-            push!(params, ParamT(beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels))
-            i += 1
+    for beta_idle in [1, 2, 4]
+        for density in [(4, 8), (7, 10)]
+            n_agent = int8(density[1])
+            pkt_max = int8(density[2])
+            for goodratio in [(2, 7), (1, 2), (3, 4)]
+                caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
+                prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2])
+                push!(params, ParamT(goodratio, beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels))
+                i += 1
+            end
         end
     end
     params
