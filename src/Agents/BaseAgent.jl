@@ -45,8 +45,7 @@ immutable EnergySavingMode
     n :: Int
 end
 
-MaxThroughput = EnergySavingMode(1)
-EnergySaving = EnergySavingMode(1)
+MaxThroughput = EnergySaving = EnergySavingMode(1)
 
 export EnergySavingMode, EnergySaving, MaxThroughput
 
@@ -96,7 +95,7 @@ type AgentState
         a.buf_overflow = false
         a.id = i
         a.chan = rand(1:Params.n_channel)
-        a.energysaving = i % 2 == 0 ? MaxThroughput : EnergySaving
+        a.energysaving = EnergySaving # i % 2 == 0 ? MaxThroughput : EnergySaving
         a.pktqueue = Queue(Int)
         a
     end
