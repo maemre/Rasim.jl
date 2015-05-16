@@ -6,11 +6,11 @@ export t_slot, batch_run, verbose, n_runs, t_total, n_channel,
        r_init, B, pkt_size, b_size, pkt_min, base_freq, chan_bw, chan_trans_prob, noise, P_levels
 
 # Simulation parameters:
-const batch_run = false
+const batch_run = true
 const verbose = true && !batch_run
 const debug = false
 # number of runs
-const n_runs = 20
+const n_runs = 3
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
@@ -40,7 +40,7 @@ const t_backoff = Params.t_sense * 3
 
 # powers
 const P_tx = 200e-3 # W
-const P_levels = [0.5 1 2 4] * P_tx
+const P_levels = [0.5 1 1.5 2] * P_tx
 const P_sense = 0.5*P_tx
 const P_sw = 0.5*P_tx
 const P_idle = 0.2*P_tx
