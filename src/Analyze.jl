@@ -58,7 +58,7 @@ function getdata()
             latency = read(file, "latencies")
             extra = jldopen(joinpath(dir, "$at-extra.jld"), "r")
             latencyhist = read(extra, "latencyhist")
-            d = {(P.goodratio[1] / P.goodratio[2]) P.pkt_max P.n_agent at generated_packets tried_packets sent_packets buf_levels buf_overflow vec(mean(energy, [1])) vec(mean(bits, [1])) P.prefix [1:30000] latency latencyhist}
+            d = {(P.goodratio[1] / P.goodratio[2]) P.pkt_max P.n_agent at generated_packets tried_packets sent_packets buf_levels buf_overflow vec(mean(energy, [1])) vec(mean(bits, [1])) P.prefix [1:Params.t_total] latency latencyhist}
             push!(df, d)
             b=vec(mean(bits, [1]))
             en=vec(mean(energy, [1]))
@@ -85,6 +85,8 @@ function getdata()
     df[:bits_mean] = map(mean, df[:bits])
     df[:bits_std] = map(std, df[:bits])
     ee = map(./, df[:bits], df[:en])
+    df[:ee] = ee
+    df[:ee_cum] = map(./, map(cumsum, df[:bits]), map(cumsum, df[:en]))
     df[:ee_mean] =  map(mean, ee)
     # retries per sent packet
     df[:retries] = (df[:tried_packets] ./ df[:sent_packets]) - 1
@@ -102,34 +104,12 @@ Save sufficient statistics
 =#
 function savestats(df)
     stats = copy(df)
-    for key in [:en, :bits, :t, :buf_levels, :latency]
+    for key in [:en, :bits, :t, :buf_levels, :latency, :latencyhist, :ee, :ee_cum]
         delete!(stats, key)
     end
     # save whole statistics
     writetable("suffstats.csv", stats)
 end
-
-# function plotframe(frame)
-#     theme = Theme(major_label_font_size=6mm, minor_label_font_size=4mm, key_title_font_size=6mm, key_label_font_size=4mm, line_width=1mm, default_point_size=0.8mm)
-#     for df = groupby(frame, [:n_good_channel, :pkt_max, :n_agent, :sharingperiod])
-#         title = string("n_good_channel=", df[:n_good_channel][1], " pkt_max=", df[:pkt_max][1], " nagent=", df[:n_agent][1], " period=", df[:sharingperiod][1])
-#         draw(SVGJS("th/beta/$title.svg", 10inch, 8inch), plot(df, y="throughput", x="beta_idle", color="agent_type", Geom.point, Geom.line, Guide.title(title)))
-#         draw(SVGJS("ee/beta/$title.svg", 10inch, 8inch), plot(df, y="ee", x="beta_idle", color="agent_type", Geom.point, Geom.line, Guide.title(title)))
-#     end
-#     for df = groupby(frame, [:beta_idle, :pkt_max, :n_agent, :sharingperiod])
-#         title = string("beta_idle=", df[:beta_idle][1], " pkt_max=", df[:pkt_max][1], " nagent=", df[:n_agent][1], " period=", df[:sharingperiod][1])
-#         draw(SVGJS("th/ngc/$title.svg", 10inch, 8inch), plot(df, y="throughput", x="n_good_channel", color="agent_type", Geom.point, Geom.line, Guide.title(title)))
-#         draw(SVGJS("ee/ngc/$title.svg", 10inch, 8inch), plot(df, y="ee", x="n_good_channel", color="agent_type", Geom.point, Geom.line, Guide.title(title)))
-#     end
-# end
-
-# function ee(d)
-#     p = DataFrame()
-#     for i in d[:agent_type]
-#        p[symbol(i)] = d[d[:agent_type] .== i, :bits][1] ./ d[d[:agent_type] .== i, :en][1]
-#     end
-#     p
-# end
 
 function plotframes(df)
     theme = Theme(major_label_font_size=6mm, minor_label_font_size=4mm, key_title_font_size=6mm, key_label_font_size=4mm, line_width=1mm, default_point_size=0.8mm)
@@ -137,6 +117,11 @@ function plotframes(df)
     for data in groupby(df, :prefix)
         prefix = data[1, :prefix]
         println("Plotting $prefix")
+        ∇ = DataFrame(agent_type=ASCIIString[], ee=Float64[], ee_cum=Float64[], bits=Float64[], t=Float64[], buf_levels=Float64[])
+        for i=1:size(data)[1]
+            dd = DataFrameRow(data, i)
+            append!(∇, DataFrame(agent_type=fill(dd[:agent_type], length(dd[:ee])), ee=dd[:ee], ee_cum=dd[:ee_cum], bits=dd[:bits], t=dd[:t], buf_levels=vec(mean(dd[:buf_levels], 1))))
+        end
         function sumlatencies(latencies)
             lat = DefaultDict(Int, Int, 0)
             for l in latencies
@@ -167,16 +152,20 @@ function plotframes(df)
             end
             δ
         end
+        println("Plotting Latency histogram")
         # Plot latency histograms
         latencyhist = plot(d, x="latency", color="agent_type", Geom.histogram(position=:dodge, bincount=10), Guide.xlabel("Latency (time slots)"), Guide.colorkey("Algorithm"), theme, Guide.yticks(ticks=linspace(0, highest * 2, 5)))
-        draw(SVGJS("$prefix-latency-histogram.svg", 10inch, 6inch), latencyhist)
-        # draw(PDF("plots/$prefix-ee-cumulative.pdf", 6inch, 4inch), plot(data, x="t", y="cumee", color="agent_type", Geom.smooth, yticks[:ee], Guide.xlabel("Time (s)"), Guide.ylabel("EE (b/J)"), Guide.colorkey("Algorithm"), theme))
-        # draw(PDF("plots/$prefix-ee-smoothed.pdf", 6inch, 4inch), plot(data, x="t", y="ee", color="agent_type", Geom.smooth, Guide.xlabel("Time (s)"), Guide.ylabel("EE (b/J)"), Guide.colorkey("Algorithm"), theme))
-        # draw(PDF("plots/$prefix-throughput.pdf", 6inch, 4inch), plot(data, x="t", y="bits", color="agent_type", Geom.smooth, yticks[:th], Guide.xlabel("Time (s)"), Guide.ylabel("Throughput (packets)"), Guide.colorkey("Algorithm"), theme))
-        # draw(PDF("plots/$prefix-buffer.pdf", 6inch, 4inch), plot(data, x="t", y="buf", color="agent_type", Geom.smooth, Guide.xlabel("Time (s)"), Guide.ylabel("Buffer Occupancy (packets)"), Guide.colorkey("Algorithm"), theme))
+        draw(PDF("plots/$prefix-latency-histogram.pdf", 10inch, 6inch), latencyhist)
+        smooth = Geom.smooth(smoothing=0.2)
+        println("Plotting other plots")
+        draw(PDF("plots/$prefix-ee-cumulative.pdf", 6inch, 4inch), plot(∇, x="t", y="ee_cum", color="agent_type", smooth, yticks[:ee], Guide.xlabel("Time (s)"), Guide.ylabel("EE (b/J)"), Guide.colorkey("Algorithm"), theme))
+        draw(PDF("plots/$prefix-ee-smoothed.pdf", 6inch, 4inch), plot(∇, x="t", y="ee", color="agent_type", smooth, Guide.xlabel("Time (s)"), Guide.ylabel("EE (b/J)"), Guide.colorkey("Algorithm"), theme))
+        draw(PDF("plots/$prefix-throughput.pdf", 6inch, 4inch), plot(∇, x="t", y="bits", color="agent_type", smooth, yticks[:th], Guide.xlabel("Time (s)"), Guide.ylabel("Throughput (packets)"), Guide.colorkey("Algorithm"), theme))
+        draw(PDF("plots/$prefix-buffer.pdf", 6inch, 4inch), plot(∇, x="t", y="buf_levels", color="agent_type", smooth, Guide.xlabel("Time (s)"), Guide.ylabel("Buffer Occupancy (packets)"), Guide.colorkey("Algorithm"), theme))
     end
 end
 
-#df = getdata()
-#savestats(df)
+df = getdata()
+println("Saving statistics")
+savestats(df)
 plotframes(df)
