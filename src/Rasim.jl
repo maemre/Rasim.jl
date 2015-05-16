@@ -47,13 +47,6 @@ end
 function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: ParamT, init_positions :: Array{Point{Float64}, 2})
     const output_dir = joinpath("data/", P.prefix)
     const n_agent = int(P.n_agent)
-    const sharingperiod = P.sharingperiod
-    # size of Q matrix, used for data sharing computation
-    const sizeQ = Params.d_svd * 64 * (n_channel * (P.buf_levels + 1) + (n_channel * length(P_levels) + 1))
-    # time slots required for an agent to send/receive Q matrix
-    const timeQ = int(ceil(sizeQ ./ Params.controlcapacity ./ t_slot))
-    # time required for an agent to send/receive Q matrix
-    const rawtimeQ0 = sizeQ ./ Params.controlcapacity ./ t_slot
     avg_energies = zeros(Float64, n_agent, t_total)
     avg_bits = zeros(Float64, n_agent, t_total)
     en_idle = zeros(n_agent, t_total)
@@ -67,7 +60,6 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     # Q = zeros(n_agent, int(Params.n_channel), P.buf_levels + 1, Params.n_channel * length(Params.P_levels) + 1)
     expertness = zeros(n_agent)
     pkt_sent = zeros(Int, n_agent)
-    rawtimeQ = 0
     interference = zeros(n_agent, n_channel)
     release_time = zeros(n_channel)
     generated_packets = zeros(Int64, n_agent, n_runs)
@@ -293,7 +285,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
 
         rates[5] /= t_total * n_channel / 100
 
-        if verbose && false
+        if verbose
             println("Collisions: ", rates[1])
             println("Successes: ", rates[2])
             println("Lost in Channel: ", rates[3])
@@ -307,12 +299,12 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
             final_distances[a.s.id] += (a.s.pos.x .^ 2 + a.s.pos.y .^ 2)
         end
     end
-    avg_energies /= float(n_runs)
-    avg_bits /= float(n_runs)
-    en_idle /= float(n_runs)
-    en_sense /= float(n_runs)
-    en_tx /= float(n_runs)
-    en_sw /= float(n_runs)
+    avg_energies ./= float(n_runs)
+    avg_bits ./= float(n_runs)
+    en_idle ./= float(n_runs)
+    en_sense ./= float(n_runs)
+    en_tx ./= float(n_runs)
+    en_sw ./= float(n_runs)
     latencies = [sum([k*latencyhist[i, j][k] for k=keys(latencyhist[i, j])]) for i=1:n_agent, j=1:n_runs]
     latencies ./= sent_packets
     if verbose
