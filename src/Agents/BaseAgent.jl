@@ -192,8 +192,9 @@ function sense(a :: Agent, env :: Environment, detect_traffic :: Function)
         error("No time remained for sensing")
     end
     s.t_remaining -= Params.t_sense
-    s.E_sense = Params.P_sense * Params.t_sense
-    s.E_slot += s.E_sense
+    E_sense = Params.P_sense * Params.t_sense
+    s.E_sense += E_sense
+    s.E_slot += E_sense
     a.status = Sensed
     Sense(s.chan, s.id)
 end
@@ -233,8 +234,9 @@ function switch!(a :: Agent, c :: Int8)
         error(sprintf("No time remained for switching from chan #%d to chan #%d", s.chan, c))
     end
 
-    s.E_sw = t_sw * Params.P_sw
-    s.E_slot += s.E_sw
+    E_sw = t_sw * Params.P_sw
+    s.E_sw += E_sw
+    s.E_slot += E_sw
     s.t_remaining -= t_sw
     s.chan = c
     a.status = Switched
@@ -251,8 +253,9 @@ function transmit!(a :: Agent, P_tx, env, n_pkt)
     end
     s.n_pkt_slot = n_pkt
     s.t_remaining -= n_bits / bitrate
-    s.E_tx = P_tx * n_bits / bitrate
-    s.E_slot += s.E_tx
+    E_tx
+    s.E_tx += E_tx
+    s.E_slot += P_tx * n_bits / bitrate
     a.status = Transmitted
     Transmit(P_tx, bitrate, s.chan, n_pkt, s.id)
 end
