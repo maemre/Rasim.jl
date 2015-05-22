@@ -81,11 +81,12 @@ const trustQ = 0.1
 # # of dimensions for SVD approximation
 const d_svd = 9
 
+const twotiers = true
 # detection and false alarm probabilities for diferent agent types
-const pd = [0.90, 0.96]
-const pf = [0.10, 0.04]
+const pd = twotiers ? [0.90, 0.90] : [0.90, 0.96]
+const pf = twotiers ? [0.10, 0.10] : [0.10, 0.04]
 # Location accuracy for different agent types
-const eps_accuracy = [50 1]
+const eps_accuracy = twotiers ? [10 10] : [50 1]
 
 export ParamT, genparams
 

@@ -253,9 +253,9 @@ function transmit!(a :: Agent, P_tx, env, n_pkt)
     end
     s.n_pkt_slot = n_pkt
     s.t_remaining -= n_bits / bitrate
-    E_tx
+    E_tx = P_tx * n_bits / bitrate
     s.E_tx += E_tx
-    s.E_slot += P_tx * n_bits / bitrate
+    s.E_slot += E_tx
     a.status = Transmitted
     Transmit(P_tx, bitrate, s.chan, n_pkt, s.id)
 end
