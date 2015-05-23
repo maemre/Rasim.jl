@@ -37,6 +37,13 @@ function getdata()
     df[:t] = Vector{Float64}[]
     df[:latency] = Matrix{Float64}[]
     df[:latencyhist] = Matrix{Dict{Int, Int}}[]
+    df[:en_idle] = Float64[]
+    df[:en_sw] = Float64[]
+    df[:en_sense] = Float64[]
+    df[:en_sleep] = Float64[]
+    df[:en_tx] = Float64[]
+    df[:delta] = Float64[]
+    df[:b_idle] = Float64[]
     agent_types = ["CooperativeQ", "OptHighestSNR", "RandomChannel", "ContextQ"]
     for P = genparams()
         dir = joinpath("data/", P.prefix)
@@ -47,7 +54,7 @@ function getdata()
         # s=DataFrame(agent_type=ASCIIString[], buf=Float64[], en=Float64[], t=Int64[], bits=Float64[], ee=Float64[], cumee=Float64[], cumth=Float64[])
         for at in agent_types
             file = jldopen(joinpath(dir, "$at.jld"), "r")
-            energy = read(file, "avg_energies")
+            energy = vec(mean(read(file, "avg_energies"), [1]))
             bits = read(file, "avg_bits")
             buf_overflow = read(file, "buf_overflows")
             buf_levels = read(file, "buf_levels")
@@ -58,13 +65,40 @@ function getdata()
             latency = read(file, "latencies")
             extra = jldopen(joinpath(dir, "$at-extra.jld"), "r")
             latencyhist = read(extra, "latencyhist")
-            d = {(P.goodratio[1] / P.goodratio[2]) P.pkt_max P.n_agent at generated_packets tried_packets sent_packets buf_levels buf_overflow vec(mean(energy, [1])) vec(mean(bits, [1])) P.prefix [1:Params.t_total] latency latencyhist}
+            energies = jldopen(joinpath(dir, "$at-energies.jld"), "r")
+            en_idle = mean(vec(mean(read(energies, "en_idle"), [1])) ./ energy)
+            en_sw = mean(vec(mean(read(energies, "en_sw"), [1])) ./ energy)
+            en_sense = mean(vec(mean(read(energies, "en_sense"), [1])) ./ energy)
+            en_sleep = mean(vec(mean(read(energies, "en_sleep"), [1])) ./ energy)
+            en_tx = mean(vec(mean(read(energies, "en_tx"), [1])) ./ energy)
+            close(energies)
+            d = {
+                (P.goodratio[1] / P.goodratio[2])
+                P.pkt_max
+                P.n_agent
+                at
+                generated_packets
+                tried_packets
+                sent_packets
+                buf_levels
+                buf_overflow
+                energy
+                vec(mean(bits, [1]))
+                P.prefix
+                [1:Params.t_total]
+                latency
+                latencyhist
+                en_idle
+                en_sw
+                en_sense
+                en_sleep
+                en_tx
+                P.δ
+                P.beta_idle
+            }
             push!(df, d)
             b=vec(mean(bits, [1]))
             en=vec(mean(energy, [1]))
-            ee_ = b ./ en
-            #= dd = DataFrame(agent_type=fill(at, t_total), buf=vec(mean(read(file, "buf_matrix"), [1])), en=e, t=[1:t_total], bits=b, ee=ee_, cumee=cumsum(b) ./ cumsum(e), cumth=cumsum(b))
-            append!(s, dd) =#
             close(file)
             avg_buf_overflow = mean(buf_overflow)
             avg_buf_levels = mean(buf_levels)

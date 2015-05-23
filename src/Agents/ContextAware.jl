@@ -148,12 +148,12 @@ function BaseAgent.initcoordinator(:: Type{ContextQ}, P :: ParamT)
     return Coordinator(P)
 end
 
-function expertweights(expertness, agents, i)
+function expertweights(a, expertness, agents, i)
     #expertness -= min(expertness)
     # convert weights to values in [0, 1]
     distances = [norm([a.s.x, a.s.y] + rand(a.s.location_error)) for a in agents]
     distances = abs(distances - distances[i]) + 5 # +5 part is for accuracy
-    expertness ./= sqrt(distances) # .^ 0.4
+    expertness ./= distances .^ a.δ
     weights = logistic(expertness, mean(expertness), 1, expertness[i])
     # introduce distances into weights
     #temp = weights[i]
@@ -161,8 +161,9 @@ function expertweights(expertness, agents, i)
     # weights[expertness .<= expertness[i]] = 0
     # make weights one-sum
     weights = weights ./ sum(weigths)
-    # weights .*= Params.trustQ
-    # weights[i] = 1 - Params.trustQ
+    # normalize weights to use trustQ
+    weights .*= Params.trustQ / sum(weights[1:endof(weights) .!= i])
+    weights[i] = 1 - Params.trustQ
 end
 
 function BaseAgent.cooperate(agents :: Vector{ContextQ}, P :: ParamT, coordinator :: Coordinator, t)
@@ -211,7 +212,7 @@ function BaseAgent.cooperate(agents :: Vector{ContextQ}, P :: ParamT, coordinato
                     #fill!(agents[i].Q, 0)
                     # use up-to-date Q function on CR's side
                     # learning from experts (LE)
-                    weights = expertweights(expertness, agents, i)
+                    weights = expertweights(agents[i], expertness, agents, i)
                     agents[i].Q *= weights[i]
                     for j=1:n_agent
                         if i == j || weights[j] == 0 # || !experts[j]

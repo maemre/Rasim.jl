@@ -102,6 +102,7 @@ type ParamT
     n_agent :: Int8
     n_good_channel :: Int8
     caplevels :: Vector{Int}
+    δ :: Float64 # distance factor
 end
 
 function gencaplevels(n_agent, k, n)
@@ -117,17 +118,20 @@ function genparams()
     params = Array(ParamT,0)
     i = 1
     n_good_channel = int8(3)
-    buf_levels = 10
+    buf_levels = 3
     sharingperiod = 1000
-    for beta_idle in [1, 2, 4]
-        for density in [(4, 8), (7, 10)]
-            n_agent = int8(density[1])
-            pkt_max = int8(density[2])
-            for goodratio in [(2, 7), (1, 2), (3, 4)]
-                caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
-                prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2])
-                push!(params, ParamT(goodratio, beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels))
-                i += 1
+
+    for δ in [0.3, 0.5, 0.7]
+        for beta_idle in [2, 4, 8]
+            for density in [(4, 8), (7, 10)]
+                n_agent = int8(density[1])
+                pkt_max = int8(density[2])
+                for goodratio in [(2, 7), (1, 2), (3, 4)]
+                    caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
+                    prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d-%f", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2], δ)
+                    push!(params, ParamT(goodratio, beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels, δ))
+                    i += 1
+                end
             end
         end
     end
