@@ -29,6 +29,7 @@ type ContextQ <: Agent
     buf_interval :: Int
     beta_idle :: Float64
     state :: StateT
+    δ :: Float64
 end
 
 const n_p_levels = length(Params.P_levels)
