@@ -164,7 +164,7 @@ function idle(a :: Agent, t :: Float64 = -1.)
         t = s.t_remaining
     end
     s.E_idle += Params.P_idle * t
-    s.E_slot += s.E_idle
+    s.E_slot += Params.P_idle * t
     s.t_remaining -= t
     Idle(s.id)
 end
@@ -200,7 +200,7 @@ function sense(a :: Agent, env :: Environment, detect_traffic :: Function)
 end
 
 function detect_traffic(s :: AgentState, t :: SimpleTraffic, t_remaining :: Float64)
-    # if channel is occupied ofr less than half of sensing time
+    # if channel is occupied for less than half of sensing time
     # we can't sense the traffic, so use pf (actually this logic should be revised)
     sensing = t.occupancy < (Params.t_slot - t_remaining - 0.5 * Params.t_sense)
     rand() < (sensing ? pd : pf)
@@ -262,13 +262,6 @@ end
 
 function act(a :: Agent)
     error("Not implemented")
-end
-
-function detect_traffic(s :: AgentState, t :: SimpleTraffic, t_remaining :: Float64)
-    # if channel is occupied ofr less than half of sensing time
-    # we can't sense the traffic, so use pf (actually this logic should be revised)
-    sensing = t.occupancy < (Params.t_slot - t_remaining - 0.5 * Params.t_sense)
-    rand() < (sensing ? s.pd : s.pf)
 end
 
 initcoordinator{AgentT <: Agent}(:: Type{AgentT}, P :: ParamT) = nothing
