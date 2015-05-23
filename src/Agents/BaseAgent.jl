@@ -203,7 +203,7 @@ function detect_traffic(s :: AgentState, t :: SimpleTraffic, t_remaining :: Floa
     # if channel is occupied for less than half of sensing time
     # we can't sense the traffic, so use pf (actually this logic should be revised)
     sensing = t.occupancy < (Params.t_slot - t_remaining - 0.5 * Params.t_sense)
-    rand() < (sensing ? pd : pf)
+    rand() < (sensing ? s.pd : s.pf)
 end
 
 function feedback(s :: AgentState, res :: Result, idle :: Bool = false, n_pkt :: Int = 0)
