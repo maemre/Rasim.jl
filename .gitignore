@@ -9,3 +9,5 @@ src/scratchpad
 plots
 *.jld
 *.csv
+*.pdf
+plots-*
