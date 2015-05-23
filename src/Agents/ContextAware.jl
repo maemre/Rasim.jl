@@ -39,7 +39,7 @@ function ContextQ(i, P, pos)
     Q = rand(EnergySaving.n, int(Params.n_channel), P.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
     visit = zeros(Int, EnergySaving.n, Params.n_channel, P.buf_levels + 1, idle_action)
-    agent = ContextQ(AgentState(i, P, pos), Q, visit, 0, 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle, StateT(0, 0, MaxThroughput))
+    agent = ContextQ(AgentState(i, P, pos), Q, visit, 0, 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle, StateT(0, 0, MaxThroughput), P.δ)
     agent.state.energysaving = agent.s.energysaving
     agent
 end
