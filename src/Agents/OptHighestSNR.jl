@@ -42,7 +42,7 @@ function BaseAgent.act(a :: OptHighestSNR, env, t)
         end
 
         min_noise_channels = filter(i -> ! env.traffics[i].traffic && env.channels[i].noise <= min_noise, 1:Params.n_channel)
-        chan = int8(min_noise_channels[rand(int8(1):endof(min_noise_channels))])
+        chan = int8(min_noise_channels[rand(1:endof(min_noise_channels))])
 
         return switch(a, chan)
     elseif a.status == Switched
