@@ -40,7 +40,7 @@ const t_backoff = Params.t_sense * 3
 
 # powers
 const P_tx = 200e-3 # W
-const P_levels = [0.5 1 1.5 2] * P_tx
+const P_levels = [0.5 1 2 4] * P_tx
 const P_sense = 0.5*P_tx
 const P_sw = 0.5*P_tx
 const P_idle = 0.2*P_tx
