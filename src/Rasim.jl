@@ -242,40 +242,38 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                     feedback(agents[i], Success, true)
                     rates[4] += 1
                     continue
-                elseif collided[i]
-                    # interference-based collision scheme for SUs
-                    # collision with PU
-                    if traffics[act.chan].traffic
-                        rates[5] += 1
-                        rates[1] += 1
-                        feedback(agents[i], Collision)
-                    else
-                        # Complete SU Collision
-                        if pkt_sent[i] == 0
-                            feedback(agents[i], Collision)
-                            rates[1] += 1
-                        else
-                            # We did sent some packages, albeit collision
-                            feedback(agents[i], Success, false, pkt_sent[i])
-                            rates[2] += pkt_sent[i] / a.s.n_pkt_slot
-                            rates[3] += (a.s.n_pkt_slot - pkt_sent[i]) / a.s.n_pkt_slot
-                            # collect bit transmission statistics
-                            bits_transmitted[i, t] = pkt_sent[i] * Params.pkt_size
-                        end
-                    end
                 elseif isa(act, Transmit)
                     ch = channels[act.chan]
                     
                     if pkt_sent[i] == 0
-                        feedback(agents[i], LostInChannel)
+                        feedback(agents[i], ifelse(collided[i], Collision, LostInChannel))
                     else
                         feedback(agents[i], Success, false, pkt_sent[i])
                     end
-
-                    rates[2] += pkt_sent[i] / a.s.n_pkt_slot
-                    rates[3] += (a.s.n_pkt_slot - pkt_sent[i]) / a.s.n_pkt_slot
-                    # collect bit transmission statistics
-                    bits_transmitted[i, t] = pkt_sent[i] * Params.pkt_size
+                    if collided[i]
+                        # interference-based collision scheme for SUs
+                        # collision with PU
+                        if traffics[act.chan].traffic
+                            rates[5] += 1
+                            rates[1] += 1
+                        # SU Collision
+                        else
+                            # Complete SU Collision
+                            if pkt_sent[i] == 0
+                                rates[1] += 1
+                            else
+                                rates[2] += pkt_sent[i] / a.s.n_pkt_slot
+                                rates[3] += (a.s.n_pkt_slot - pkt_sent[i]) / a.s.n_pkt_slot
+                                # collect bit transmission statistics
+                                bits_transmitted[i, t] = pkt_sent[i] * Params.pkt_size
+                            end
+                        end
+                    else
+                        rates[2] += pkt_sent[i] / a.s.n_pkt_slot
+                        rates[3] += (a.s.n_pkt_slot - pkt_sent[i]) / a.s.n_pkt_slot
+                        # collect bit transmission statistics
+                        bits_transmitted[i, t] = pkt_sent[i] * Params.pkt_size
+                    end
                 end
             end
         end

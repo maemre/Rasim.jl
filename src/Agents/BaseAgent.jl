@@ -171,6 +171,9 @@ end
 
 function initial_action(a :: Agent, env :: Environment, t :: Int64, P)
     fillbuffer(a, P, t)
+    if length(a.s.pktqueue) + a.s.B_empty != a.s.B_max
+        error("Buffer inconsistency at $(a.s)")
+    end
     move!(a.s, t)
     s :: AgentState = a.s
     s.n_pkt_slot = 0
