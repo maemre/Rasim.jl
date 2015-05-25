@@ -10,20 +10,20 @@ const batch_run = true
 const verbose = true && !batch_run
 const debug = false
 # number of runs
-const n_runs = 3
+const n_runs = 30
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(100 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(300 / t_slot)) # convert seconds to time slots
 # number of channels
-const n_channel = int8(5)
+const n_channel = int8(8)
 # radius of initial map
 const r_init = 1000
 
 # Buffer parameters
 
 # number of buffer slots
-const B = int16(512) # packets
+const B = int16(1024) # packets
 # Size of a buffer slot (also packet size)
 const pkt_size = 1024 # bits
 # buffer size in bits
