@@ -10,7 +10,7 @@ const batch_run = true
 const verbose = true && !batch_run
 const debug = false
 # number of runs
-const n_runs = 30
+const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
@@ -78,8 +78,6 @@ const t_saturation = 1000
 const controlcapacity = 1e6 * log2(1 + 10 .^ 0.7)
 # trust to others' experiences
 const trustQ = 0.1
-# # of dimensions for SVD approximation
-const d_svd = 9
 
 const twotiers = true
 # detection and false alarm probabilities for diferent agent types
@@ -103,6 +101,7 @@ type ParamT
     n_good_channel :: Int8
     caplevels :: Vector{Int}
     δ :: Float64 # distance factor
+    d_svd :: Int # # of dimensions used by SVD compression (SVD compression level)
 end
 
 function gencaplevels(n_agent, k, n)
@@ -121,16 +120,18 @@ function genparams()
     buf_levels = 3
     sharingperiod = 1000
 
-    for δ in [0.3, 0.5, 0.7]
-        for beta_idle in [2, 4, 8]
-            for density in [(4, 8), (7, 10)]
-                n_agent = int8(density[1])
-                pkt_max = int8(density[2])
-                for goodratio in [(2, 7), (1, 2), (3, 4)]
-                    caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
-                    prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d-%f", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2], δ)
-                    push!(params, ParamT(goodratio, beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels, δ))
-                    i += 1
+    for d_svd in [9, 12, 15]
+        for δ in [0.4, 0.5, 0.6]
+            for beta_idle in [2, 4, 8]
+                for density in [(4, 8), (7, 10), (10, 10)]
+                    n_agent = int8(density[1])
+                    pkt_max = int8(density[2])
+                    for goodratio in [(2, 7), (1, 2), (3, 4), (1, 1)]
+                        caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
+                        prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d-%f", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2], δ)
+                        push!(params, ParamT(goodratio, beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels, δ, d_svd))
+                        i += 1
+                    end
                 end
             end
         end

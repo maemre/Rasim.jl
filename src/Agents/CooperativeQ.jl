@@ -119,8 +119,8 @@ type Coordinator
     Vt :: Array{Float64, 3} # V' where U*S*V' = svd(Q) for each agent
     function Coordinator(P :: ParamT)
         c = new()
-        c.US = zeros(P.n_agent, int(Params.n_channel) * (P.buf_levels + 1), Params.d_svd)
-        c.Vt = zeros(P.n_agent, Params.d_svd, Params.n_channel * length(Params.P_levels) + 1)
+        c.US = zeros(P.n_agent, int(Params.n_channel) * (P.buf_levels + 1), P.d_svd)
+        c.Vt = zeros(P.n_agent, P.d_svd, Params.n_channel * length(Params.P_levels) + 1)
     end
 end
 
@@ -132,7 +132,7 @@ function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordi
     const n_agent = int(P.n_agent)
     const sharingperiod = P.sharingperiod
     # size of US + size of Vt, used for data sharing time and energy computation
-    # const sizeQ = Params.d_svd * 64 * (n_channel * (P.buf_levels + 1) + (n_channel * length(P_levels) + 1))
+    # const sizeQ = P.d_svd * 64 * (n_channel * (P.buf_levels + 1) + (n_channel * length(P_levels) + 1))
     const sizeQ = 64 * n_channel * (P.buf_levels + 1) * (n_channel * length(P_levels) + 1)
     # time slots required for an agent to send/receive Q matrix by sending/receiving US & Vt
     const timeQ = int(ceil(sizeQ ./ Params.controlcapacity ./ t_slot))
@@ -154,8 +154,8 @@ function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordi
                 # using only positive expertness ones
                 if tt - (i-1) * timeQ == timeQ - 1
                     #= u, s, v = svd(reshape(agents[i].expertness .* agents[i].Q, shapeQ))
-                    US[i, :, :] = u[:,1:Params.d_svd]*diagm(s[1:Params.d_svd])
-                    Vt[i, :, :] = v'[1:Params.d_svd, :] =#
+                    US[i, :, :] = u[:,1:P.d_svd]*diagm(s[1:P.d_svd])
+                    Vt[i, :, :] = v'[1:P.d_svd, :] =#
                     Q[i,:,:,:] = agents[i].expertness .* agents[i].Q
                     expertness[i] = agents[i].expertness
                 end
