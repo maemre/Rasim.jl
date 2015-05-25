@@ -335,6 +335,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     latencyhist = convert(Matrix{Dict{Int, Int}}, latencyhist)
     @save joinpath(output_dir, string(AgentT, ".jld")) buf_levels avg_energies avg_bits avg_buf_levels buf_overflows generated_packets tried_packets sent_packets latencies
     @save joinpath(output_dir, string(AgentT, "-extra.jld")) init_positions init_distances final_distances latencyhist
+    @save joinpath(output_dir, string(AgentT, "-extra.jld")) en_idle en_tx en_sw en_sense
     #@save "trajectories.jld" trajectories
 end
 

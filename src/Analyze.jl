@@ -40,7 +40,7 @@ function getdata()
     df[:en_idle] = Float64[]
     df[:en_sw] = Float64[]
     df[:en_sense] = Float64[]
-    df[:en_sleep] = Float64[]
+    # df[:en_sleep] = Float64[]
     df[:en_tx] = Float64[]
     df[:delta] = Float64[]
     df[:b_idle] = Float64[]
@@ -66,11 +66,12 @@ function getdata()
             extra = jldopen(joinpath(dir, "$at-extra.jld"), "r")
             latencyhist = read(extra, "latencyhist")
             energies = jldopen(joinpath(dir, "$at-energies.jld"), "r")
-            en_idle = mean(vec(mean(read(energies, "en_idle"), [1])) ./ energy)
-            en_sw = mean(vec(mean(read(energies, "en_sw"), [1])) ./ energy)
-            en_sense = mean(vec(mean(read(energies, "en_sense"), [1])) ./ energy)
-            en_sleep = mean(vec(mean(read(energies, "en_sleep"), [1])) ./ energy)
-            en_tx = mean(vec(mean(read(energies, "en_tx"), [1])) ./ energy)
+            en_total = mean(energy)
+            en_idle = mean(vec(mean(read(energies, "en_idle"), [1]))) / en_total
+            en_sw = mean(vec(mean(read(energies, "en_sw"), [1]))) / en_total
+            en_sense = mean(vec(mean(read(energies, "en_sense"), [1]))) / en_total
+            # en_sleep = mean(vec(mean(read(energies, "en_sleep"), [1]))) / en_total
+            en_tx = mean(vec(mean(read(energies, "en_tx"), [1]))) / en_total
             close(energies)
             d = {
                 (P.goodratio[1] / P.goodratio[2])
@@ -91,7 +92,7 @@ function getdata()
                 en_idle
                 en_sw
                 en_sense
-                en_sleep
+                #en_sleep
                 en_tx
                 P.δ
                 P.beta_idle
