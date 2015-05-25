@@ -121,9 +121,9 @@ function genparams()
     sharingperiod = 1000
 
     for d_svd in [9, 12, 15]
-        for δ in [0.4, 0.5, 0.6]
-            for beta_idle in [2, 4, 8]
-                for density in [(4, 8), (7, 10), (10, 10)]
+        for δ in [0.5, 0.6]
+            for beta_idle in [2, 8]
+                for density in [(6, 8), (10, 10)]
                     n_agent = int8(density[1])
                     pkt_max = int8(density[2])
                     for goodratio in [(2, 7), (1, 2), (3, 4), (1, 1)]
