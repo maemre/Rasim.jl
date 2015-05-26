@@ -86,6 +86,8 @@ const pf = twotiers ? [0.10, 0.10] : [0.10, 0.04]
 # Location accuracy for different agent types
 const eps_accuracy = twotiers ? [10 10] : [50 1]
 
+const energysaving = false
+
 export ParamT, genparams
 
 type ParamT
