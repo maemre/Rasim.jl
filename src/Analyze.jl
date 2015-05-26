@@ -44,6 +44,7 @@ function getdata()
     df[:en_tx] = Float64[]
     df[:delta] = Float64[]
     df[:b_idle] = Float64[]
+    df[:d_svd] = Int[]
     agent_types = ["CooperativeQ", "OptHighestSNR", "RandomChannel", "ContextQ"]
     for P = genparams()
         dir = joinpath("data/", P.prefix)
@@ -96,6 +97,7 @@ function getdata()
                 en_tx
                 P.δ
                 P.beta_idle
+                P.d_svd
             }
             push!(df, d)
             b=vec(mean(bits, [1]))

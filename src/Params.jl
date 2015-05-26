@@ -130,7 +130,7 @@ function genparams()
                     pkt_max = int8(density[2])
                     for goodratio in [(2, 7), (1, 2), (3, 4), (1, 1)]
                         caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
-                        prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d-%f", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2], δ)
+                        prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d-%f-%d", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2], δ, d_svd)
                         push!(params, ParamT(goodratio, beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels, δ, d_svd))
                         i += 1
                     end
