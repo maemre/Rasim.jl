@@ -74,10 +74,20 @@ function success_prob(c :: GilbertChannel, E_b)
     exp(log_prob)
 end
 
-function transmission_successes(c :: GilbertChannel, power, bitrate, x, y)
-    # apply Friis transmission eqn to get received power
+function transmission_successes(c :: GilbertChannel, power, bitrate, x, y, indoor=false)
     d = sqrt(x ^ 2 + y ^ 2)
-    P_r = power * (3e8 / (4 * pi * d * c.freq)) .^ 2
+    # use Hata model for outdoor loss
+    loss = 32.4 + 20 * (log10(c.freq / 1e9) + log10(d))
+    if indoor
+        # use COST-231 path loss eqn for indoor to get received power
+        l_e = 7
+        l_ge = 6 # approx. for all incidence angles
+        Γ1 = Params.Indoor.walls * 7
+        Γ2 = 0.6 * Params.Indoor.d_indoor * 0.55 # integrate for all incidence angles
+        l_indoor = l_e + l_ge + max(Γ1, Γ2)
+        loss += l_indoor
+    end
+    P_r = 10 ^ (log10(power) - (loss / 10))
     # compute energy per bit
     E_b = P_r / bitrate
     # compute per-packet success rate

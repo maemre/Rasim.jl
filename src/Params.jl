@@ -47,7 +47,7 @@ const P_idle = 0.2*P_tx
 const P_rec = 40 # W
 
 # channel parameters
-const base_freq = 9e8 # 900 MHz
+const base_freq = 1.8e9 # 1.8 GHz
 const chan_bw = 1e6 # 1 MHz
 # allowed bitrate
 const bitrate = 3.75e6 # 1 Mbps
@@ -71,7 +71,16 @@ const beta_md = 1 # misdetection punishment coefficient
 const beta_loss = 2 # punishment for data loss in channel
 const epsilon = 0.05 # exploration probability
 const discount = 0.4 # discount factor, gamma
+
 end
+
+module Indoor
+
+const d_indoor = 2 # m
+const walls = 2
+
+end
+
 # saturation time of initial values
 const t_saturation = 1000
 # capacity of control channel, assuming SNR of channel is 7 dB

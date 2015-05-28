@@ -74,6 +74,7 @@ type AgentState
     chan :: Int8 # current channel
     energysaving :: EnergySavingMode
     pktqueue :: Queue{Deque{Int}} # Creation time-slot of packets
+    indoor :: Bool
     function AgentState(i :: Int8, P :: ParamT, pos :: Point{Float64})
         a = new()
         a.pos = pos
@@ -98,6 +99,7 @@ type AgentState
         a.chan = rand(1:Params.n_channel)
         a.energysaving = i % 2 == 0 ? (Params.energysaving ? EnergySaving : MaxThroughput) : EnergySaving
         a.pktqueue = Queue(Int)
+        a.indoor = false
         a
     end
 end

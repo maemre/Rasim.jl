@@ -187,7 +187,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
                         # if no PU collision
                         if ! traffics[i].traffic
                             # Resolve transmission result
-                            n_success = transmission_successes(channels[action.chan], action.power, action.bitrate, a.s.pos.x, a.s.pos.y)
+                            n_success = transmission_successes(channels[action.chan], action.power, action.bitrate, a.s.pos.x, a.s.pos.y, a.s.indoor)
                             # Compute latency figures
                             for _ = 1:n_success
                                 latencyhist[agentid, n_run][t - dequeue!(a.s.pktqueue)] += 1
