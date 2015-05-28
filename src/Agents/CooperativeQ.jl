@@ -176,7 +176,7 @@ function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordi
                 if tt - (i+n_agent-1) * timeQ == timeQ - 1
                     #fill!(agents[i].Q, 0)
                     # use up-to-date Q function on CR's side
-                    weight = 1 - Params.trustQ
+                    weight = 1 - P.trustQ
                     agents[i].Q *= weight #* reshape(Q[j,:,:,:], size(agents[i].Q))
                     # learning from experts (LE)
                     # choose some experts randomly
@@ -191,7 +191,7 @@ function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordi
                             continue
                         else
                             if expertness[j] > expertness[i]
-                                weight = Params.trustQ * (expertness[j] - expertness[i])
+                                weight = P.trustQ * (expertness[j] - expertness[i])
                                 # normalize
                                 weight ./= sum((expertness - expertness[i]) .* (expertness .> expertness[i]))
                                 #= us = slice(US, (j, 1:size(US)[2], 1:size(US)[3]))
@@ -201,7 +201,7 @@ function BaseAgent.cooperate(agents :: Vector{CooperativeQ}, P :: ParamT, coordi
                             end
                         end
                     end
-                    agents[i].expertness = 0 # *= 1 - Params.trustQ
+                    agents[i].expertness = 0 # *= 1 - P.trustQ
                 end
             end
         end

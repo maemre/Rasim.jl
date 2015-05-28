@@ -85,9 +85,6 @@ end
 const t_saturation = 1000
 # capacity of control channel, assuming SNR of channel is 7 dB
 const controlcapacity = 1e6 * log2(1 + 10 .^ 0.7)
-# trust to others' experiences
-const trustQ = 0.1
-
 const twotiers = true
 # detection and false alarm probabilities for diferent agent types
 const pd = twotiers ? [0.90, 0.90] : [0.90, 0.96]
@@ -113,6 +110,7 @@ type ParamT
     caplevels :: Vector{Int}
     δ :: Float64 # distance factor
     d_svd :: Int # # of dimensions used by SVD compression (SVD compression level)
+    trustQ :: Float64 # trust to others' experiences
 end
 
 function gencaplevels(n_agent, k, n)
@@ -131,16 +129,16 @@ function genparams()
     buf_levels = 3
     sharingperiod = 1000
 
-    for d_svd in [9, 12, 15]
         for δ in [0.5, 0.6]
             for beta_idle in [2, 8]
+    for d_svd in [9], trustQ in [0.1, 0.2, 0.5]
                 for density in [(6, 8), (10, 10)]
                     n_agent = int8(density[1])
                     pkt_max = int8(density[2])
                     for goodratio in [(2, 7), (1, 2), (3, 4), (1, 1)]
                         caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
-                        prefix = @sprintf("%d-%d-%d-%d-%f-%d-%d-%f-%d", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2], δ, d_svd)
-                        push!(params, ParamT(goodratio, beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels, δ, d_svd))
+                        prefix = @sprintf("%d-%d-%d-%d-%.2f-%d-%d-%.2f-%d-%.2f", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2], δ, d_svd, trustQ)
+                        push!(params, ParamT(goodratio, beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels, δ, d_svd, trustQ))
                         i += 1
                     end
                 end

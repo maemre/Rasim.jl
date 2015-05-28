@@ -45,6 +45,7 @@ function getdata()
     df[:delta] = Float64[]
     df[:b_idle] = Float64[]
     df[:d_svd] = Int[]
+    df[:trustQ] = Float64[]
     agent_types = ["CooperativeQ", "OptHighestSNR", "RandomChannel", "ContextQ"]
     for P = genparams()
         dir = joinpath("data/", P.prefix)
@@ -98,6 +99,7 @@ function getdata()
                 P.δ
                 P.beta_idle
                 P.d_svd
+                P.trustQ
             }
             push!(df, d)
             b=vec(mean(bits, [1]))
@@ -205,4 +207,4 @@ end
 df = getdata()
 println("Saving statistics")
 savestats(df)
-plotframes(df)
+# plotframes(df)

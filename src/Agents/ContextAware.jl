@@ -30,6 +30,7 @@ type ContextQ <: Agent
     beta_idle :: Float64
     state :: StateT
     δ :: Float64
+    trustQ :: Float64
 end
 
 const n_p_levels = length(Params.P_levels)
@@ -39,7 +40,7 @@ function ContextQ(i, P, pos)
     Q = rand(EnergySaving.n, int(Params.n_channel), P.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
     visit = zeros(Int, EnergySaving.n, Params.n_channel, P.buf_levels + 1, idle_action)
-    agent = ContextQ(AgentState(i, P, pos), Q, visit, 0, 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle, StateT(0, 0, MaxThroughput), P.δ)
+    agent = ContextQ(AgentState(i, P, pos), Q, visit, 0, 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle, StateT(0, 0, MaxThroughput), P.δ, P.trustQ)
     agent.state.energysaving = agent.s.energysaving
     agent
 end
@@ -163,8 +164,8 @@ function expertweights(a, expertness, agents, i)
     # make weights one-sum
     weights = weights ./ sum(weigths)
     # normalize weights to use trustQ
-    weights .*= Params.trustQ / sum(weights[1:endof(weights) .!= i])
-    weights[i] = 1 - Params.trustQ
+    weights .*= a.trustQ / sum(weights[1:endof(weights) .!= i])
+    weights[i] = 1 - a.trustQ
 end
 
 function BaseAgent.cooperate(agents :: Vector{ContextQ}, P :: ParamT, coordinator :: Coordinator, t)
@@ -225,7 +226,7 @@ function BaseAgent.cooperate(agents :: Vector{ContextQ}, P :: ParamT, coordinato
                             fill!(agents[i].visit, 0)
                         end
                     end
-                    agents[i].expertness = 0 # *= 1 - Params.trustQ
+                    agents[i].expertness = 0 # *= 1 - a.trustQ
                 end
             end
         end
