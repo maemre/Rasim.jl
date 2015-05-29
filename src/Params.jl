@@ -14,7 +14,7 @@ const n_runs = 10
 # time slot
 const t_slot = 10e-3 # s
 # total simulation time (as time slots)
-const t_total = int(floor(300 / t_slot)) # convert seconds to time slots
+const t_total = int(floor(600 / t_slot)) # convert seconds to time slots
 # number of channels
 const n_channel = int8(8)
 # radius of initial map
