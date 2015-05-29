@@ -31,6 +31,7 @@ type ContextQ <: Agent
     state :: StateT
     δ :: Float64
     trustQ :: Float64
+    buflevels :: Int # needed for bufer-level-baed computation in feedback
 end
 
 const n_p_levels = length(Params.P_levels)
@@ -40,7 +41,7 @@ function ContextQ(i, P, pos)
     Q = rand(EnergySaving.n, int(Params.n_channel), P.buf_levels + 1, idle_action)
     Q *= Params.P_tx * Params.t_slot # a good initial randomization
     visit = zeros(Int, EnergySaving.n, Params.n_channel, P.buf_levels + 1, idle_action)
-    agent = ContextQ(AgentState(i, P, pos), Q, visit, 0, 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle, StateT(0, 0, MaxThroughput), P.δ, P.trustQ)
+    agent = ContextQ(AgentState(i, P, pos), Q, visit, 0, 0, 0, Initialized, 0, div(Params.B + 1, P.buf_levels), P.beta_idle, StateT(0, 0, MaxThroughput), P.δ, P.trustQ, P.buf_levels + 1)
     agent.state.energysaving = agent.s.energysaving
     agent
 end
@@ -111,8 +112,12 @@ function BaseAgent.feedback(a :: ContextQ, res :: Result, idle :: Bool = false, 
         r = - a.beta_idle * a.bitrate * Params.t_slot / a.s.E_slot
         if res == BufOverflow # If we were idle and overflow occurred, get some extra punishment
             r = r * Params.beta_overflow / a.beta_idle
-        elseif a.state.energysaving == MaxThroughput
-            r *= 2 # double beta_idle in max throughput mode
+        else
+            if a.state.energysaving == MaxThroughput
+                r *= 2 # double beta_idle in max throughput mode
+            end
+            new_buf_level = div(a.s.B_empty, a.buf_interval) + 1
+            r *= 1 + 0.5 * (new_buf_level - a.buflevels / 2) / a.buflevels # increase idleness penalty with buffer level
         end
     elseif res == Success
         K = 1 # a.P_tx ^ 2 * Params.t_slot / a.bitrate
