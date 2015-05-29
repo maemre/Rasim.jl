@@ -52,10 +52,10 @@ const chan_bw = 1e6 # 1 MHz
 # allowed bitrate
 const bitrate = 3.75e6 # 1 Mbps
 # state transition probabilities, first state is good state
-const chan_trans_prob = [0.8 0.2; 0.8 0.2]'
+const chan_trans_prob = [0.7 0.3; 0.7 0.3]'
 # channel noises for each channel type (type 1, type 2 etc)
 const P_sig = todBm(P_tx/chan_bw) # signal power density in dBm
-const noise = P_sig - (32.4 + 20 * (log10(base_freq / 1e9) + log10(r_init / 2))) + [-5 0; -10 -4]
+const noise = P_sig - (32.4 + 20 * (log10(base_freq / 1e9) + log10(r_init))) + [-8 -5; -11 -7]
 
 #traffic parameters
 const traffic_trans_prob =  [0.7 0.3; 0.9 0.1]'
@@ -90,8 +90,8 @@ const t_saturation = 1000
 const controlcapacity = 1e6 * log2(1 + 10 .^ 0.7)
 const twotiers = true
 # detection and false alarm probabilities for diferent agent types
-const pd = twotiers ? [0.90, 0.90] : [0.90, 0.96]
-const pf = twotiers ? [0.10, 0.10] : [0.10, 0.04]
+const pd = twotiers ? [0.90, 0.90] : [0.88, 0.97]
+const pf = twotiers ? [0.10, 0.10] : [0.12, 0.03]
 # Location accuracy for different agent types
 const eps_accuracy = twotiers ? [10 10] : [50 1]
 
@@ -132,19 +132,20 @@ function genparams()
     buf_levels = 3
     sharingperiod = 1000
 
-        for δ in [0.5, 0.6]
-            for beta_idle in [2, 8]
-    for d_svd in [9], trustQ in [0.1, 0.2, 0.5]
-                for density in [(6, 8), (10, 10)]
-                    n_agent = int8(density[1])
-                    pkt_max = int8(density[2])
-                    for goodratio in [(2, 7), (1, 2), (3, 4), (1, 1)]
+    for d_svd in [12], trustQ in [0.1]
+        for δ in [1]
+            for density in [(6, 8), (10, 10)]
+                n_agent = int8(density[1])
+                pkt_max = int8(density[2])
+                beta_idles = n_agent < 7 ? [1] : [4]
+                for beta_idle in beta_idles
+                    for goodratio in [(1, 2), (3, 4), (1, 1)]
                         caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
                         prefix = @sprintf("%d-%d-%d-%d-%.2f-%d-%d-%.2f-%d-%.2f", n_runs, t_total, n_agent, pkt_max, beta_idle, goodratio[1], goodratio[2], δ, d_svd, trustQ)
                         push!(params, ParamT(goodratio, beta_idle, sharingperiod, buf_levels, pkt_max, div(n_agent, 2), i, prefix, n_agent, n_good_channel, caplevels, δ, d_svd, trustQ))
                         i += 1
                     end
-                end
+            end
             end
         end
     end
