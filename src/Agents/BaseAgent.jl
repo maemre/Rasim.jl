@@ -86,7 +86,7 @@ type AgentState
         a.E_tx = 0
         a.E_sense = 0
         a.E_idle = 0
-        a.walk = randomwalk(a.speed, int(10 / Params.t_slot))
+        a.walk = randomwalk(a.speed, int(20 / Params.t_slot))
         a.cap_level = P.caplevels[i]
         # distribute pd-pf pairs using round robin
         a.pd = Params.pd[a.cap_level]
