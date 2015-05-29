@@ -46,6 +46,8 @@ function getdata()
     df[:b_idle] = Float64[]
     df[:d_svd] = Int[]
     df[:trustQ] = Float64[]
+    df[:lost_packets] = Float64[]
+    df[:loss_rate] = Float64[]
     agent_types = ["CooperativeQ", "OptHighestSNR", "RandomChannel", "ContextQ"]
     for P = genparams()
         dir = joinpath("data/", P.prefix)
@@ -74,6 +76,7 @@ function getdata()
             en_sense = mean(vec(mean(read(energies, "en_sense"), [1]))) / en_total
             # en_sleep = mean(vec(mean(read(energies, "en_sleep"), [1]))) / en_total
             en_tx = mean(vec(mean(read(energies, "en_tx"), [1]))) / en_total
+            lostinchan = read(file, "lostinchan")
             close(energies)
             d = {
                 (P.goodratio[1] / P.goodratio[2])
@@ -100,6 +103,8 @@ function getdata()
                 P.beta_idle
                 P.d_svd
                 P.trustQ
+                lostinchan
+                lostinchan / tried_packets
             }
             push!(df, d)
             b=vec(mean(bits, [1]))

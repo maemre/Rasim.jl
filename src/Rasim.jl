@@ -68,6 +68,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     init_distances = zeros(Float64, n_agent)
     final_distances = zeros(Float64, n_agent)
     latencyhist = Array(DefaultDict{Int, Int, Int}, n_agent, n_runs)
+    lostinchan = 0
     for i=1:n_agent, j=1:n_runs
         latencyhist[i, j] = DefaultDict(Int, Int, 0)
     end
@@ -282,7 +283,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
         avg_bits += bits_transmitted
 
         rates[5] /= t_total * n_channel / 100
-
+        lostinchan += rates[3]
         if verbose
             println("Collisions: ", rates[1])
             println("Successes: ", rates[2])
@@ -333,7 +334,7 @@ function run_simulation{AgentT <: Agent}(:: Type{AgentT}, at_no :: Int, P :: Par
     buf_overflows = sum(buf_overflow)
     buf_levels = reshape(mean(buf_levels, 1), size(buf_levels)[2:end])
     latencyhist = convert(Matrix{Dict{Int, Int}}, latencyhist)
-    @save joinpath(output_dir, string(AgentT, ".jld")) buf_levels avg_energies avg_bits avg_buf_levels buf_overflows generated_packets tried_packets sent_packets latencies
+    @save joinpath(output_dir, string(AgentT, ".jld")) buf_levels avg_energies avg_bits avg_buf_levels buf_overflows generated_packets tried_packets sent_packets latencies lostinchan
     @save joinpath(output_dir, string(AgentT, "-extra.jld")) init_positions init_distances final_distances latencyhist
     @save joinpath(output_dir, string(AgentT, "-energies.jld")) en_idle en_tx en_sw en_sense
     #@save "trajectories.jld" trajectories
