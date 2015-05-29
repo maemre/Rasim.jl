@@ -156,6 +156,7 @@ function expertweights(a, expertness, agents, i)
     distances = [norm([a.s.x, a.s.y] + rand(a.s.location_error)) for a in agents]
     distances = abs(distances - distances[i]) + 5 # +5 part is for accuracy
     expertness ./= distances .^ a.δ
+    expertness .*= Params.QParams.cap_weights[[a.cap_level for a in agents]]
     weights = logistic(expertness, mean(expertness), 1, expertness[i])
     # introduce distances into weights
     #temp = weights[i]

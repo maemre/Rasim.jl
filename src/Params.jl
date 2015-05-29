@@ -72,6 +72,9 @@ const beta_loss = 2 # punishment for data loss in channel
 const epsilon = 0.05 # exploration probability
 const discount = 0.4 # discount factor, gamma
 
+# weights of capability levels
+const cap_weights = [1; 1.1]
+
 end
 
 module Indoor
