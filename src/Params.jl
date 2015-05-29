@@ -55,7 +55,7 @@ const bitrate = 3.75e6 # 1 Mbps
 const chan_trans_prob = [0.7 0.3; 0.7 0.3]'
 # channel noises for each channel type (type 1, type 2 etc)
 const P_sig = todBm(P_tx/chan_bw) # signal power density in dBm
-const noise = P_sig - (32.4 + 20 * (log10(base_freq / 1e9) + log10(r_init))) + [-8 -5; -11 -7]
+const noise = P_sig - (32.4 + 20 * (log10(base_freq / 1e9) + log10(r_init))) + [-8 -5; -11 -6] # [-5 -3; -11 -4]
 
 #traffic parameters
 const traffic_trans_prob =  [0.7 0.3; 0.9 0.1]'
