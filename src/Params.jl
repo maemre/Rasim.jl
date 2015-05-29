@@ -132,12 +132,12 @@ function genparams()
     buf_levels = 3
     sharingperiod = 1000
 
-    for d_svd in [12], trustQ in [0.1]
-        for δ in [1]
+    for d_svd in [11, 12], trustQ in [0.1]
+        for δ in [0.6, 1]
             for density in [(6, 8), (10, 10)]
                 n_agent = int8(density[1])
                 pkt_max = int8(density[2])
-                beta_idles = n_agent < 7 ? [1] : [4]
+                beta_idles = n_agent < 7 ? [1, 2] : [4, 8]
                 for beta_idle in beta_idles
                     for goodratio in [(1, 2), (3, 4), (1, 1)]
                         caplevels = gencaplevels(n_agent, goodratio[1], goodratio[2])
